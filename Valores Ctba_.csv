@@ -1,0 +1,85 @@
+Tipo R. Bassani;Forros;Un;Custo MO à Pagar;Valor do Material + MO
+FT01;Forro em F112 - Unidirecional - 600/Std;m²;18;84,4496569583644
+FT04;Forro em F112 - Unidirecional - 400/Ru;m²;18;102,034771588668
+FT16;Tabica Branca Lisa - Destaque no Forro;m;0;14,6209204871141
+FT17;Tabica Branca Lisa 5cm - Destaque no Forro;m;0;42,2897385577291
+FT79;Forro em F112 - Unidirecional - 400/RF15;m²;18;103,452884419737
+FT28;Alçapão DryMold em F112 - Unidirecional 600/Std 0,40x0,40 m;ud;30;170,541234238715
+FT29;Alçapão DryMold em F112 - Unidirecional 600/Std 0,50x0,50 m;ud;30;272,310260359477
+FT30;Alçapão DryMold em F112 - Unidirecional 600/Std 0,60x0,60 m;ud;30;289,14
+FT31;Alçapão DryMold em F112 - Unidirecional 400/Ru 0,70x0,70 m;ud;30;363,60494712684
+FT65;Alçapão DryMold em F112 - Unidirecional 400/Ru 0,30x0,50 m;ud;30;306,964507257046
+FT66;Alçapão DryMold em F112 - Unidirecional 600/Std 0,30x0,50 m;ud;30;278,878430994509
+FT67;Alçapão DryMold em F112 - Unidirecional 600/Std 1,00x1,10 m;ud;30;519,385295016031
+FT82;Alçapão DryMold em F112 - Unidirecional 400/Ru 0,50x0,50 m;ud;30;339,281024964803
+TPF01;Cortineiro DryMold em F112 Unidirecional - 600/Std 25x20cm (2 Faixas);m;20;108,232306673107
+TPF18;Fechamento Vertical em Forro em F112 - Unidirecional - 600/Std até 0,30m;m;10;50,8279256824919
+TPF19;Fechamento Vertical em Forro em F112 - Unidirecional - 600/Std até 0,60m;m;15;64,7577927134256
+TPF26;Fechamento Vertical em Forro em F112 - Unidirecional - 600/Std acima de 0,60m;m²;16;88,4685479483906
+TP42;Parede P111 95/MS70/600 Std/Std;m²;20;151,392786669253
+TP43;Parede P111 95/MS70/400 Std/Std;m²;20;160,878626547437
+TP44;Parede P111 95/MS70/400 Std/Ru;m²;20;174,898366765109
+TP75;Parede P111 95/MS70/400 Cim/Ru;m²;35;428,410891565981
+TP83;Parede P111 115/MS90/600 Std/Std;m²;20;156,429964029065
+TP84;Parede P111 115/MS90/400 Std/Std;m²;20;167,017067703462
+TP85;Parede P111 115/MS90/400 Std/Ru;m²;20;181,247352921064
+TP86;Parede P111 115/MS90/400 Ru/Ru;m²;20;194,924156933396
+TP96;Parede P111 115/MS90/600 Hd/Hd;m²;20;185,216240095411
+TP99;Parede P111 115/MS90/400 Hd/Hd;m²;20;195,950810731384
+TP115;Parede P111 115/MS90/400 Cim/Std;m²;35;420,30116331403
+TP254;Parede P116 141/MS48-MS48/400 Std/Std;m²;27;207,296361514859
+TP265;Parede P116 141/MS48-MS48/600 Hd/Hd;m²;27;220,744451089034
+TP293;Parede P116 185/MS70-MS70/600 Std/Std;m²;27;202,221193524473
+TP294;Parede P116 185/MS70-MS70/400 Std/Std;m²;27;221,321755466718
+TP295;Parede P116 185/MS70-MS70/400 Std/Ru;m²;27;235,559303609163
+TP296;Parede P116 185/MS70-MS70/400 Ru/Ru;m²;27;248,362053100237
+TP296-E;Parede P116 185/MS70-Std-MS70/400 Ru/Ru (Placa Std entre as Estruturas);m²;31;291,284402560499
+TP305;Parede P116 210/MS70-MS70/600 Hd/Hd;m²;27;231,967880599799
+TP308;Parede P116 185/MS70-MS70/400 Hd/Hd;m²;27;251,071434113237
+TP336;Parede P116 225/MS90-MS90/400 Ru/Ru;m²;27;261,908600574919
+TP345-E;Parede P116 217,5/MS90-Std-MS90/600 Hd/Hd (Placa Std entre as Estruturas);m²;31;277,779689870782
+TP348;Parede P116 217,5/MS90-MS90/400 Hd/Hd;m²;27;263,561661499517
+TP348-E;Parede P116 217,5/MS90-Std-MS90/400 Hd/Hd (Placa Std entre as Estruturas);m²;31;302,642540467969
+TP504;Revestimento R623 30,5/F47/600 Std;m²;16;93,6915579373851
+TP505;Revestimento R623 30,5/F47/400 Std;m²;16;99,9814235458916
+TP506;Revestimento R623 30,5/F47/400 Ru;m²;16;114,337104277951
+TP512;Revestimento R625 60,5/MS48/600 Std;m²;16;101,306097882927
+TP513;Revestimento R625 60,5/MS48/400 Std;m²;16;109,444128414523
+TP514;Revestimento R625 60,5/MS48/400 Ru;m²;16;123,356487659361
+TP528;Revestimento R625 82,5/MS70/600 Std;m²;16;107,13018615524
+TP528-CAR;Revestimento R625 82,5/MS70/600 Std;m²;16;107,13018615524
+TP529;Revestimento R625 82,5/MS70/400 Std;m²;16;116,544386497637
+TP530;Revestimento R625 82,5/MS70/400 Ru;m²;16;130,635766251096
+TP543;Revestimento R625 82,5/MS70/400 Cim;m²;27,5;363,03248301754
+TP544;Revestimento R625 102,5/MS90/600 Std;m²;16;112,167363515052
+TP545;Revestimento R625 102,5/MS90/400 Std;m²;16;122,724935342522
+TP546;Revestimento R625 102,5/MS90/400 Ru;m²;16;136,984752407051
+TP554;Revestimento R625 102,5/MS90/400 Hd;m²;16;137,503574741652
+TP731;Parede P111 115/MS90/400 Hu/Hu;m²;20;218,320297938254
+TP735;Parede P116 185/MS70-MS70/400 Hd/Hu;m²;27;265,005563458241
+TP750;Revestimento R625 102,5/MS90/400 Hu;m²;16;149,94541939771
+TP751;Parede P111 115/MS90/400 Hd/Hu;m²;20;207,536272870051
+TP781;Revestimento R626 152,5/MS70-MS70/600 Std;m²;23;165,049233441381
+TP784;Parede P116 217,5/MS90-MS90/400 Hu/Hu;m²;27;285,351621457147
+TP784-E;Parede P116 217,5/MS90-Std-MS90/400 Hu/Hu (Placa Std entre as Estruturas);m²;31;327,663512033989
+TP787-E;Parede P116 217,5/MS90-Std-MS90/400 Hd/Hu (Placa Std entre as Estruturas);m²;31;315,192800851012
+TP788;Parede P116 166/MS48-MS48/400 Hd/Hu;m²;27;248,679805697377
+FS-15;Faixa de Acabamento em Placa Std - Largura até 0,15m;m;5;27,583227723554
+FS-30;Faixa de Acabamento em Placa Std - Largura até 0,30m;m;10;43,7428056124252
+FU-15;Faixa de Acabamento em Placa Ru - Largura até 0,15m;m;5;32,3015014746529
+FU-30;Faixa de Acabamento em Placa Ru - Largura até 0,30m;m;10;48,0744474728862
+NICHO;Nicho Estruturado com Acabamento em Placa RU - 60x100cm;ud;50;297,08
+LJE;Laje composta em estrutura LSF - 0,95 MS200/400 com vedação em Painel Wall 40mm - 1,40x2,00m ;ud;168;1688,6697595436
+RM40-60;Suporte de Madeira 400x600mm para Fixação de Carga em Parede e Revestimento em Drywall;ud;4;123,943193535756
+RM40-40;Suporte de Madeira 400x400mm para Fixação de Carga em Parede e Revestimento em Drywall;ud;4;80,0577660775518
+LV-50;Isolamento Acústico em Lã de Vidro W4+ 50mm - d=10kg/m³;m²;3;24,7592007205771
+LV-70;Isolamento Acústico em Lã de Vidro W4+ 70mm - d=10kg/m³;m²;3;33,8799260439114
+LV-100;Isolamento Acústico em Lã de Vidro W4+ 100mm - d=10kg/m³;m²;3;40,9744589277185
+SHF-40;Suporte Metálico Horizontal para Caixas de Instalação e Saídas hidráulicas (F47/400);ud;4;12,7314348876564
+SH48-40;Suporte Metálico Horizontal para Caixas de Instalação e Saídas hidráulicas (Guia 48/400);ud;4;12,7267475959397
+SH48-60;Suporte Metálico Horizontal para Caixas de Instalação e Saídas hidráulicas (Guia 48/600);ud;4;14,2180330816573
+SH70-40;Suporte Metálico Horizontal para Caixas de Instalação e Saídas hidráulicas (Guia 70/400);ud;4;13,4821173335381
+SH70-60;Suporte Metálico Horizontal para Caixas de Instalação e Saídas hidráulicas (Guia 70/600);ud;4;15,2877883126323
+SH90-40;Suporte Metálico Horizontal para Caixas de Instalação e Saídas hidráulicas (Guia 90/400);ud;4;14,1707475762484
+TP514;Revestimento R625 60,5/MS48/400 Ru;m²;16;123,356487659361
+LV-50;Isolamento Acústico em Lã de Vidro W4+ 50mm - d=10kg/m³;m²;3;24,7592007205771

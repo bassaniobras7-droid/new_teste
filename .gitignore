@@ -1,0 +1,9 @@
+.venv/
+env/
+__pycache__/
+*.xlsx
+*.7z
+~$*
+BKP_projeto/
+Relatorios_OLD/
+Valores_Ctba/
