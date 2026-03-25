@@ -728,170 +728,276 @@ def write_summary_sheet(sheet, summary_normal, summary_distratado, price_data, b
 
 
 def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, price_data, bold_font, regular_font, header_fill, currency_format, accounting_format, bold_white_font=None, regular_white_font=None, client_normal=None, client_distratado=None):
-    sheet.column_dimensions['A'].width = 12.29
-    sheet.column_dimensions['B'].width = 43.37
-    sheet.column_dimensions['C'].width = 10.14
-    sheet.column_dimensions['D'].width = 5.00
-    sheet.column_dimensions['E'].width = 13.91
-    sheet.column_dimensions['F'].width = 13.20
-    sheet.column_dimensions['G'].width = 2.00
+    # Larguras baseadas no RB_10841 (ADD + DISTRATO)
+    sheet.column_dimensions['A'].width = 11.71   # Tipo R. Bassani (ADD)
+    sheet.column_dimensions['B'].width = 39.00   # Descrição (ADD)
+    sheet.column_dimensions['C'].width = 10.29   # Metragem (ADD)
+    sheet.column_dimensions['D'].width = 3.43    # Un (ADD)
+    sheet.column_dimensions['E'].width = 13.86   # Valor Unit (ADD)
+    sheet.column_dimensions['F'].width = 16.14   # Valor Total (ADD)
+    sheet.column_dimensions['G'].width = 11.71   # Tipo R. Bassani (DIST)
+    sheet.column_dimensions['H'].width = 37.71   # Descrição (DIST)
+    sheet.column_dimensions['I'].width = 10.29   # Metragem (DIST)
+    sheet.column_dimensions['J'].width = 3.43    # Un (DIST)
+    sheet.column_dimensions['K'].width = 13.86   # Valor Unit (DIST)
+    sheet.column_dimensions['L'].width = 14.29   # Valor Total (DIST)
+    sheet.column_dimensions['M'].width = 10.14   # Diferença (aux, vermelho)
 
-    sheet.column_dimensions['H'].width = 12.29
-    sheet.column_dimensions['I'].width = 43.37
-    sheet.column_dimensions['J'].width = 10.14
-    sheet.column_dimensions['K'].width = 5.00
-    sheet.column_dimensions['L'].width = 13.91
-    sheet.column_dimensions['M'].width = 13.20
+    # Paleta de cores RB_10841
+    fill_titulo      = PatternFill(start_color='B8CCE4', end_color='B8CCE4', fill_type='solid')  # azul claro
+    fill_add_label   = PatternFill(start_color='FBD4B4', end_color='FBD4B4', fill_type='solid')  # laranja muito claro
+    fill_dis_label   = PatternFill(start_color='E4DFEC', end_color='E4DFEC', fill_type='solid')  # lilás muito claro
+    fill_add_total_l = PatternFill(start_color='FABF8F', end_color='FABF8F', fill_type='solid')  # laranja claro (label total)
+    fill_add_total_v = PatternFill(start_color='FDE9D9', end_color='FDE9D9', fill_type='solid')  # laranja palidíssimo (valor total)
+    fill_dis_total_l = PatternFill(start_color='E5DFEC', end_color='E5DFEC', fill_type='solid')  # lilás (label total)
+    fill_dis_total_v = PatternFill(start_color='CCC0D9', end_color='CCC0D9', fill_type='solid')  # lilás médio (valor total)
+    font_red = Font(name='Verdana', size=8, color='FF0000')
 
-    sheet.merge_cells('A1:F1')
-    sheet['A1'] = 'ADITIVOS'
-    sheet['A1'].font = bold_font
-    sheet['A1'].alignment = Alignment(horizontal='center', vertical='center')
-    sheet['A1'].fill = header_fill
+    def _spacer(row, height=3.75):
+        sheet.row_dimensions[row].height = height
 
-    sheet.merge_cells('H1:M1')
-    sheet['H1'] = 'DISTRATO'
-    sheet['H1'].font = bold_font
-    sheet['H1'].alignment = Alignment(horizontal='center', vertical='center')
-    sheet['H1'].fill = PatternFill(start_color='31859c', end_color='31859c', fill_type='solid')
-
-    headers = [('ID. Bloco/Torre', 1), ('Tipo R. Bassani', 2), ('Descrição', 3), ('Metragem', 4), ('Un', 5), ('Valor Total', 6)]
-    for text, col in headers:
-        cell = sheet.cell(row=2, column=col, value=text)
-        cell.font = bold_font
-        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        cell.fill = header_fill
-
-    for text, col in headers:
-        right_col = col + 7
-        cell = sheet.cell(row=2, column=right_col, value=text)
-        cell.font = bold_font
-        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        cell.fill = PatternFill(start_color='31859c', end_color='31859c', fill_type='solid')
-
-    def normalize_category(category):
-        if category == 'Forro':
-            return 'Forro'
-        if category in ['Parede', 'Revestimento', 'Paredes_e_Revestimentos', 'Paredes e Revestimentos']:
+    def normalize_category(cat):
+        if cat == 'Forro': return 'Forro'
+        if cat in ['Parede', 'Revestimento', 'Paredes_e_Revestimentos', 'Paredes e Revestimentos']:
             return 'Paredes e Revestimentos'
         return None
 
-    def collect_items_by_category(block_id, dataset, category):
-        results = {}
-        if not dataset or block_id not in dataset:
-            return results
+    def collect_items(block_id, dataset, category):
+        result = {}
+        if not dataset or block_id not in dataset: return result
         for item in dataset[block_id].values():
-            cat = normalize_category(item.get('Categoria'))
-            if cat == category:
-                results[item.get('Tipo Code', '')] = item
-        return results
+            if normalize_category(item.get('Categoria')) == category:
+                result[item.get('Tipo Code', '')] = item
+        return result
 
-    def write_category_section(category_name, title, row_start):
-        # Section title row
-        sheet.merge_cells(start_row=row_start, start_column=1, end_row=row_start, end_column=6)
-        sheet.merge_cells(start_row=row_start, start_column=8, end_row=row_start, end_column=13)
-        left_title = sheet.cell(row=row_start, column=1, value=title)
-        right_title = sheet.cell(row=row_start, column=8, value=title)
-        for cell, color in [(left_title, '6aa84f'), (right_title, '31859c')]:
-            cell.font = bold_white_font or bold_font
-            cell.fill = PatternFill(start_color=color, end_color=color, fill_type='solid')
-            cell.alignment = Alignment(horizontal='center', vertical='center')
+    current_row = 1
+    all_proposta_l = []  # coordenadas L de cada "VALOR TOTAL DA PROPOSTA" por bloco
 
-        current = row_start + 1
-        section_start = current
+    blocks = sorted(set((client_normal or {}).keys()) | set((client_distratado or {}).keys()), key=natural_sort_key)
 
-        # Detalhar por bloco
-        blocks = sorted(set((client_normal or {}).keys()) | set((client_distratado or {}).keys()), key=natural_sort_key)
-        for block_id in blocks:
-            # Cabeçalho por bloco
-            sheet.merge_cells(start_row=current, start_column=1, end_row=current, end_column=6)
-            blk = sheet.cell(row=current, column=1, value=f'ID. Bloco/Torre: {block_id}')
-            blk.font = bold_font
-            blk.fill = header_fill
-            blk.alignment = Alignment(horizontal='left', vertical='center')
+    for block_id in blocks:
+        # --- Título do bloco (azul claro, A:L mesclado) ---
+        sheet.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=12)
+        tc = sheet.cell(row=current_row, column=1, value=block_id)
+        tc.font = bold_font; tc.fill = fill_titulo
+        tc.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        apply_borders_to_range(sheet, current_row, 1, current_row, 12)
+        sheet.row_dimensions[current_row].height = 19.5
+        current_row += 1
 
-            sheet.merge_cells(start_row=current, start_column=8, end_row=current, end_column=13)
-            blk2 = sheet.cell(row=current, column=8, value=f'ID. Bloco/Torre: {block_id}')
-            blk2.font = bold_font
-            blk2.fill = PatternFill(start_color='31859c', end_color='31859c', fill_type='solid')
-            blk2.alignment = Alignment(horizontal='left', vertical='center')
+        _spacer(current_row); current_row += 1  # espaçador fino
 
-            current += 1
+        # --- Labels ADITIVOS / DISTRATO ---
+        sheet.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=6)
+        al = sheet.cell(row=current_row, column=1, value='ADITIVOS')
+        al.font = bold_font; al.fill = fill_add_label
+        al.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        apply_borders_to_range(sheet, current_row, 1, current_row, 6)
 
-            normal_items = collect_items_by_category(block_id, client_normal or {}, category_name)
-            distr_items = collect_items_by_category(block_id, client_distratado or {}, category_name)
-            tipos = sorted(set(normal_items.keys()) | set(distr_items.keys()), key=natural_sort_key)
+        sheet.merge_cells(start_row=current_row, start_column=7, end_row=current_row, end_column=12)
+        dl = sheet.cell(row=current_row, column=7, value='DISTRATO')
+        dl.font = bold_font; dl.fill = fill_dis_label
+        dl.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        apply_borders_to_range(sheet, current_row, 7, current_row, 12)
+        sheet.row_dimensions[current_row].height = 19.5
+        current_row += 1
+
+        _spacer(current_row); current_row += 1  # espaçador fino
+
+        # --- Categorias do bloco: Forro e Paredes e Revestimentos ---
+        cat_total_f = []  # coordenadas F de totais de categoria
+        cat_total_l = []  # coordenadas L de totais de categoria
+
+        for cat_name, cat_label in [('Forro', 'Forros'), ('Paredes e Revestimentos', 'Paredes e Revestimentos')]:
+            n_items = collect_items(block_id, client_normal or {}, cat_name)
+            d_items = collect_items(block_id, client_distratado or {}, cat_name)
+            if not n_items and not d_items:
+                continue
+
+            # Cabeçalho de colunas (col B = nome da categoria)
+            col_hdrs = [
+                ('Tipo R. Bassani', 1), (cat_label, 2), ('Metragem', 3), ('Un', 4),
+                ('Valor do Material + MO', 5), ('Valor Total', 6)
+            ]
+            for text, col in col_hdrs:
+                cell = sheet.cell(row=current_row, column=col, value=text)
+                cell.font = bold_font; cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            apply_borders_to_range(sheet, current_row, 1, current_row, 6)
+
+            for text, col in col_hdrs:
+                cell = sheet.cell(row=current_row, column=col + 6, value=text)
+                cell.font = bold_font; cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            apply_borders_to_range(sheet, current_row, 7, current_row, 12)
+            sheet.row_dimensions[current_row].height = 30
+            current_row += 1
+
+            section_start = current_row
+            tipos = sorted(set(n_items.keys()) | set(d_items.keys()), key=natural_sort_key)
 
             for tipo in tipos:
-                # Lado ADITIVOS
-                if tipo in normal_items:
-                    item = normal_items[tipo]
-                    metragem = round(item.get('BaseQuantity', 0), 2)
+                row = current_row
+                # ADD
+                if tipo in n_items:
+                    item = n_items[tipo]
+                    metr = round(item.get('BaseQuantity', 0), 2)
                     unit = price_data.get(tipo, {}).get('Un', '')
-                    valor_unit = round(price_data.get(tipo, {}).get('Valor', 0), 2)
-                    descricao = item.get('Descricao', '')
+                    vunit = round(price_data.get(tipo, {}).get('Valor', 0), 2)
+                    desc = item.get('Descricao', '')
+                    cA = sheet.cell(row=row, column=1, value=tipo)
+                    cA.font = regular_font; cA.alignment = Alignment(horizontal='center', vertical='center')
+                    cB = sheet.cell(row=row, column=2, value=desc)
+                    cB.font = regular_font; cB.alignment = Alignment(vertical='center', wrap_text=True)
+                    cC = sheet.cell(row=row, column=3, value=metr)
+                    cC.number_format = currency_format
+                    cC.font = regular_font; cC.alignment = Alignment(vertical='center')
+                    cD = sheet.cell(row=row, column=4, value=unit)
+                    cD.font = regular_font; cD.alignment = Alignment(horizontal='center', vertical='center')
+                    cE = sheet.cell(row=row, column=5, value=vunit)
+                    cE.number_format = currency_format
+                    cE.font = regular_font; cE.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                    cF = sheet.cell(row=row, column=6, value=f'=E{row}*C{row}')
+                    cF.number_format = accounting_format
+                    cF.font = regular_font; cF.fill = fill_add_label
+                    cF.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                apply_borders_to_range(sheet, row, 1, row, 6)
 
-                    sheet.cell(row=current, column=1, value=block_id)
-                    sheet.cell(row=current, column=2, value=tipo)
-                    sheet.cell(row=current, column=3, value=descricao)
-                    sheet.cell(row=current, column=4, value=metragem).number_format = currency_format
-                    sheet.cell(row=current, column=5, value=unit)
-                    sheet.cell(row=current, column=6, value=f'=ROUND({metragem}*{valor_unit},2)').number_format = accounting_format
-
-                # Lado DISTRATO
-                if tipo in distr_items:
-                    item = distr_items[tipo]
-                    metragem = round(item.get('BaseQuantity', 0), 2)
+                # DIST
+                if tipo in d_items:
+                    item = d_items[tipo]
+                    metr = round(item.get('BaseQuantity', 0), 2)
                     unit = price_data.get(tipo, {}).get('Un', '')
-                    valor_unit = round(price_data.get(tipo, {}).get('Valor', 0), 2)
-                    descricao = item.get('Descricao', '')
+                    vunit = round(price_data.get(tipo, {}).get('Valor', 0), 2)
+                    desc = item.get('Descricao', '')
+                    cG = sheet.cell(row=row, column=7, value=tipo)
+                    cG.font = regular_font; cG.alignment = Alignment(horizontal='center', vertical='center')
+                    cH = sheet.cell(row=row, column=8, value=desc)
+                    cH.font = regular_font; cH.alignment = Alignment(vertical='center', wrap_text=True)
+                    cI = sheet.cell(row=row, column=9, value=metr)
+                    cI.number_format = currency_format
+                    cI.font = regular_font; cI.alignment = Alignment(vertical='center')
+                    cJ = sheet.cell(row=row, column=10, value=unit)
+                    cJ.font = regular_font; cJ.alignment = Alignment(horizontal='center', vertical='center')
+                    cK = sheet.cell(row=row, column=11, value=vunit)
+                    cK.number_format = currency_format
+                    cK.font = regular_font; cK.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                    cL = sheet.cell(row=row, column=12, value=f'=I{row}*K{row}')
+                    cL.number_format = accounting_format
+                    cL.font = regular_font; cL.fill = fill_dis_label
+                    cL.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                apply_borders_to_range(sheet, row, 7, row, 12)
 
-                    sheet.cell(row=current, column=8, value=block_id)
-                    sheet.cell(row=current, column=9, value=tipo)
-                    sheet.cell(row=current, column=10, value=descricao)
-                    sheet.cell(row=current, column=11, value=metragem).number_format = currency_format
-                    sheet.cell(row=current, column=12, value=unit)
-                    sheet.cell(row=current, column=13, value=f'=ROUND({metragem}*{valor_unit},2)').number_format = accounting_format
+                # Coluna M: diferença de metragem (fonte vermelha, sem bordas)
+                cM = sheet.cell(row=row, column=13, value=f'=C{row}-I{row}')
+                cM.font = font_red; cM.alignment = Alignment(vertical='center', wrap_text=True)
 
-                current += 1
+                current_row += 1
 
-        section_end = current - 1
+            section_end = current_row - 1
 
-        # Totais da seção
-        sheet.cell(row=current, column=1, value=f'VALOR TOTAL DOS {title}').font = bold_font
-        sheet.merge_cells(start_row=current, start_column=1, end_row=current, end_column=4)
-        sheet.cell(row=current, column=6, value=f'=ROUND(SUM(F{section_start}:F{section_end}),2)').number_format = accounting_format
+            # Total da categoria
+            sheet.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=5)
+            tl = sheet.cell(row=current_row, column=1, value=f'VALOR TOTAL DOS {cat_label.upper()}')
+            tl.font = bold_font; tl.fill = fill_add_total_l
+            tl.alignment = Alignment(horizontal='center', vertical='center')
+            for c in range(1, 6): sheet.cell(row=current_row, column=c).fill = fill_add_total_l
+            tf = sheet.cell(row=current_row, column=6, value=f'=SUM(F{section_start}:F{section_end})')
+            tf.number_format = accounting_format
+            tf.font = bold_font; tf.fill = fill_add_total_v
+            tf.alignment = Alignment(horizontal='right', vertical='center')
+            apply_borders_to_range(sheet, current_row, 1, current_row, 6)
 
-        sheet.cell(row=current, column=8, value=f'VALOR TOTAL DOS {title}').font = bold_font
-        sheet.merge_cells(start_row=current, start_column=8, end_row=current, end_column=11)
-        sheet.cell(row=current, column=13, value=f'=ROUND(SUM(M{section_start}:M{section_end}),2)').number_format = accounting_format
+            sheet.merge_cells(start_row=current_row, start_column=7, end_row=current_row, end_column=11)
+            tr = sheet.cell(row=current_row, column=7, value=f'VALOR TOTAL DOS {cat_label.upper()} (DISTRATO)')
+            tr.font = bold_font; tr.fill = fill_dis_total_l
+            tr.alignment = Alignment(horizontal='center', vertical='center')
+            for c in range(7, 12): sheet.cell(row=current_row, column=c).fill = fill_dis_total_l
+            tm = sheet.cell(row=current_row, column=12, value=f'=SUM(L{section_start}:L{section_end})')
+            tm.number_format = accounting_format
+            tm.font = bold_font; tm.fill = fill_dis_total_v
+            tm.alignment = Alignment(horizontal='right', vertical='center')
+            apply_borders_to_range(sheet, current_row, 7, current_row, 12)
+            sheet.row_dimensions[current_row].height = 14.25
 
-        total_row = current
-        return section_start, section_end, total_row, current + 2
+            cat_total_f.append(f'F{current_row}')
+            cat_total_l.append(f'L{current_row}')
+            current_row += 1
 
-    current_row = 3
-    forro_start, forro_end, forro_total_row, next_row = write_category_section('Forro', 'FORROS', current_row)
-    paredes_start, paredes_end, paredes_total_row, next_row = write_category_section('Paredes e Revestimentos', 'PAREDES E REVESTIMENTOS', next_row)
+        # Espaçador antes do sub-total
+        _spacer(current_row); current_row += 1
 
-    subtotal_row = next_row
-    sheet.cell(row=subtotal_row, column=1, value='SUBTOTAL FORROS + PAREDES E REVESTIMENTOS').font = bold_font
-    sheet.merge_cells(start_row=subtotal_row, start_column=1, end_row=subtotal_row, end_column=4)
-    sheet.cell(row=subtotal_row, column=6, value=f'=ROUND(F{forro_total_row}+F{paredes_total_row},2)').number_format = accounting_format
-    sheet.cell(row=subtotal_row, column=13, value=f'=ROUND(M{forro_total_row}+M{paredes_total_row},2)').number_format = accounting_format
+        # Sub-Total (soma de todas as categorias do bloco)
+        if len(cat_total_f) > 1:
+            sub_f = f'=SUM({"+".join(cat_total_f)})'
+            sub_l = f'=SUM({"+".join(cat_total_l)})'
+        else:
+            sub_f = f'={cat_total_f[0]}' if cat_total_f else '0'
+            sub_l = f'={cat_total_l[0]}' if cat_total_l else '0'
 
-    final_row = subtotal_row + 1
-    sheet.cell(row=final_row, column=1, value='VALOR TOTAL DA PROPOSTA: (ADITIVOS - DISTRATOS)').font = bold_font
-    sheet.merge_cells(start_row=final_row, start_column=1, end_row=final_row, end_column=4)
-    sheet.cell(row=final_row, column=6, value=f'=ROUND(F{subtotal_row}-M{subtotal_row},2)').number_format = accounting_format
-    sheet.cell(row=final_row, column=13, value=f'=ROUND(F{subtotal_row}-M{subtotal_row},2)').number_format = accounting_format
+        sheet.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=5)
+        sl = sheet.cell(row=current_row, column=1, value='SUB-TOTAL')
+        sl.font = bold_font; sl.fill = fill_add_total_l
+        sl.alignment = Alignment(horizontal='center', vertical='center')
+        for c in range(1, 6): sheet.cell(row=current_row, column=c).fill = fill_add_total_l
+        sf = sheet.cell(row=current_row, column=6, value=sub_f)
+        sf.number_format = accounting_format
+        sf.font = bold_font; sf.fill = fill_add_total_v
+        sf.alignment = Alignment(horizontal='right', vertical='center')
+        apply_borders_to_range(sheet, current_row, 1, current_row, 6)
 
-    sheet.row_dimensions[1].hidden = True
+        sheet.merge_cells(start_row=current_row, start_column=7, end_row=current_row, end_column=11)
+        sr = sheet.cell(row=current_row, column=7, value='SUB-TOTAL')
+        sr.font = bold_font; sr.fill = fill_dis_total_l
+        sr.alignment = Alignment(horizontal='center', vertical='center')
+        for c in range(7, 12): sheet.cell(row=current_row, column=c).fill = fill_dis_total_l
+        sm = sheet.cell(row=current_row, column=12, value=sub_l)
+        sm.number_format = accounting_format
+        sm.font = bold_font; sm.fill = fill_dis_total_v
+        sm.alignment = Alignment(horizontal='right', vertical='center')
+        apply_borders_to_range(sheet, current_row, 7, current_row, 12)
+        sheet.row_dimensions[current_row].height = 14.25
+        sub_f_coord = f'F{current_row}'
+        sub_l_coord = f'L{current_row}'
+        current_row += 1
+
+        # Valor Total da Proposta (azul claro, A:K mesclado, valor em L)
+        sheet.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=11)
+        pl = sheet.cell(row=current_row, column=1, value='VALOR TOTAL DA PROPOSTA: (ADITIVOS - DISTRATOS)')
+        pl.font = bold_font; pl.fill = fill_titulo
+        pl.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        for c in range(1, 12): sheet.cell(row=current_row, column=c).fill = fill_titulo
+        pm = sheet.cell(row=current_row, column=12, value=f'={sub_f_coord}-{sub_l_coord}')
+        pm.number_format = accounting_format
+        pm.font = bold_font; pm.fill = fill_titulo
+        pm.alignment = Alignment(horizontal='right', vertical='center')
+        apply_borders_to_range(sheet, current_row, 1, current_row, 12)
+        sheet.row_dimensions[current_row].height = 21.0
+        all_proposta_l.append(f'L{current_row}')
+        current_row += 1
+
+        # Espaçador entre blocos
+        _spacer(current_row); current_row += 1
+
+    # Valor Total da Obra (azul claro, A:K mesclado, valor em L)
+    sheet.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=11)
+    ol = sheet.cell(row=current_row, column=1,
+        value='VALOR TOTAL DA OBRA:\nVALOR A SER COBRADO COMO ESCOPO ADICIONAL RESULTANTE DA DIFERENÇA ENTRE NOVO LAYOUT E SERVIÇOS DISTRATADOS')
+    ol.font = bold_font; ol.fill = fill_titulo
+    ol.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    for c in range(1, 12): sheet.cell(row=current_row, column=c).fill = fill_titulo
+    om = sheet.cell(row=current_row, column=12, value=f'=SUM({",".join(all_proposta_l)})' if all_proposta_l else '0')
+    om.number_format = accounting_format
+    om.font = bold_font; om.fill = fill_titulo
+    om.alignment = Alignment(horizontal='right', vertical='center')
+    apply_borders_to_range(sheet, current_row, 1, current_row, 12)
+    sheet.row_dimensions[current_row].height = 24.75
+    final_row = current_row
+
     sheet.page_setup.paperSize = 9
     sheet.page_setup.orientation = 'portrait'
-    sheet.page_setup.fitToPage = True
-    sheet.page_setup.fitToWidth = 1
-    sheet.page_setup.fitToHeight = 0
-    sheet.page_setup.printArea = f'A1:M{final_row}'
+    sheet.page_setup.scale = 46
+    sheet.page_setup.printArea = f'$A$1:$M${final_row}'
     sheet.sheet_view.view = 'pageBreakPreview'
 
 
