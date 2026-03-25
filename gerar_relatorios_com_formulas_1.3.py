@@ -349,6 +349,8 @@ def write_excel_with_formulas(summary_normal, summary_distratado, client_normal,
     header_fill_kl = PatternFill(start_color="33cccc", end_color="33cccc", fill_type="solid")
     # Usar formato padrão Excel (inglês) para que o Excel converta para o formato local ao abrir
     currency_format = '#,##0.00'
+    # Formato para números simples (metragem, quantidade)
+    number_format = '0.00'
     # Formato contábil com símbolo R$ à esquerda e valores alinhados à direita
     accounting_format = '_("R$"* #,##0.00_);_("R$"* -#,##0.00_);_("R$"* "-"??_);_(@_)'
 
@@ -363,7 +365,7 @@ def write_excel_with_formulas(summary_normal, summary_distratado, client_normal,
 
     ws_aditivos_distrato = workbook.create_sheet(title='Aditivos x Distrato')
     ws_aditivos_distrato.sheet_properties.tabColor = "00B050" # Verde
-    write_aditivos_distrato_sheet(ws_aditivos_distrato, summary_normal, summary_distratado, price_data, bold_font, regular_font, currency_format, accounting_format, header_fill, bold_white_font, regular_white_font, client_normal, client_distratado)
+    write_aditivos_distrato_sheet(ws_aditivos_distrato, summary_normal, summary_distratado, price_data, bold_font, regular_font, header_fill, currency_format, accounting_format, number_format, bold_white_font, regular_white_font, client_normal, client_distratado)
 
     ws_relacao_media = workbook.create_sheet(title='Relação Média Material') # Nova aba
     ws_relacao_media.sheet_properties.tabColor = "FF0000" # Vermelho
@@ -727,7 +729,7 @@ def write_summary_sheet(sheet, summary_normal, summary_distratado, price_data, b
     # Removida a quebra de página de coluna após F, pois I-L não devem ser impressas separadamente
 
 
-def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, price_data, bold_font, regular_font, header_fill, currency_format, accounting_format, bold_white_font=None, regular_white_font=None, client_normal=None, client_distratado=None):
+def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, price_data, bold_font, regular_font, header_fill, currency_format, accounting_format, number_format='0.00', bold_white_font=None, regular_white_font=None, client_normal=None, client_distratado=None):
     # Larguras baseadas no RB_10841 (ADD + DISTRATO)
     sheet.column_dimensions['A'].width = 11.71   # Tipo R. Bassani (ADD)
     sheet.column_dimensions['B'].width = 39.00   # Descrição (ADD)
@@ -850,7 +852,7 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                     cB = sheet.cell(row=row, column=2, value=desc)
                     cB.font = regular_font; cB.alignment = Alignment(vertical='center', wrap_text=True)
                     cC = sheet.cell(row=row, column=3, value=metr)
-                    cC.number_format = currency_format
+                    cC.number_format = number_format
                     cC.font = regular_font; cC.alignment = Alignment(vertical='center')
                     cD = sheet.cell(row=row, column=4, value=unit)
                     cD.font = regular_font; cD.alignment = Alignment(horizontal='center', vertical='center')
@@ -875,7 +877,7 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                     cH = sheet.cell(row=row, column=8, value=desc)
                     cH.font = regular_font; cH.alignment = Alignment(vertical='center', wrap_text=True)
                     cI = sheet.cell(row=row, column=9, value=metr)
-                    cI.number_format = currency_format
+                    cI.number_format = number_format
                     cI.font = regular_font; cI.alignment = Alignment(vertical='center')
                     cJ = sheet.cell(row=row, column=10, value=unit)
                     cJ.font = regular_font; cJ.alignment = Alignment(horizontal='center', vertical='center')
@@ -916,7 +918,7 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                         cB_sub = sheet.cell(row=sub_row, column=2, value=sub_desc)
                         cB_sub.font = regular_font; cB_sub.alignment = Alignment(vertical='center', wrap_text=True)
                         cC_sub = sheet.cell(row=sub_row, column=3, value=sub_metr)
-                        cC_sub.number_format = currency_format
+                        cC_sub.number_format = number_format
                         cC_sub.font = regular_font; cC_sub.alignment = Alignment(vertical='center')
                         cD_sub = sheet.cell(row=sub_row, column=4, value=sub_unit)
                         cD_sub.font = regular_font; cD_sub.alignment = Alignment(horizontal='center', vertical='center')
@@ -941,7 +943,7 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                         cH_sub = sheet.cell(row=sub_row, column=8, value=sub_desc)
                         cH_sub.font = regular_font; cH_sub.alignment = Alignment(vertical='center', wrap_text=True)
                         cI_sub = sheet.cell(row=sub_row, column=9, value=sub_metr)
-                        cI_sub.number_format = currency_format
+                        cI_sub.number_format = number_format
                         cI_sub.font = regular_font; cI_sub.alignment = Alignment(vertical='center')
                         cJ_sub = sheet.cell(row=sub_row, column=10, value=sub_unit)
                         cJ_sub.font = regular_font; cJ_sub.alignment = Alignment(horizontal='center', vertical='center')
