@@ -15,6 +15,30 @@ import msoffcrypto
 COLS = {'TIPO': 1, 'DESC': 2, 'METRAGEM': 3, 'UN': 4, 'VALOR_UNIT': 5, 'VALOR_TOTAL': 6, 'CUSTO_MO_UNIT': 9, 'CUSTO_MO_TOTAL': 10, 'VALOR_FECHADO': 11, 'VALOR_TOTAL_NOVO': 12}
 VISIBLE_COLS_END = 12 # A última coluna visível é a L (12)
 
+# === CONSTANTES GLOBAIS DE ESTILOS (Otimização: evitar recriação repetida) ===
+# PatternFill - Cores de preenchimento
+FILL_BLUE_LIGHT = PatternFill(start_color="99ccff", end_color="99ccff", fill_type="solid")
+FILL_CYAN = PatternFill(start_color="33cccc", end_color="33cccc", fill_type="solid")
+FILL_GREEN = PatternFill(start_color="77933c", end_color="77933c", fill_type="solid")
+FILL_BLUE_DARK = PatternFill(start_color="31859c", end_color="31859c", fill_type="solid")
+FILL_SKY_BLUE = PatternFill(start_color="B8CCE4", end_color="B8CCE4", fill_type="solid")
+FILL_ORANGE = PatternFill(start_color="e46c0a", end_color="e46c0a", fill_type="solid")
+FILL_RED_DARK = PatternFill(start_color="953735", end_color="953735", fill_type="solid")
+FILL_GRAY = PatternFill(start_color="969696", end_color="969696", fill_type="solid")
+FILL_GRAY_LIGHT = PatternFill(start_color="c0c0c0", end_color="c0c0c0", fill_type="solid")
+FILL_YELLOW = PatternFill(start_color="ffff99", end_color="ffff99", fill_type="solid")
+FILL_WHITE = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+FILL_CYAN_LIGHT = PatternFill(start_color="93cddd", end_color="93cddd", fill_type="solid")
+FILL_PURPLE = PatternFill(start_color="b3a2c7", end_color="b3a2c7", fill_type="solid")
+
+# Border - Bordas padrão
+THIN_BORDER = Border(
+    left=Side(style='thin'),
+    right=Side(style='thin'),
+    top=Side(style='thin'),
+    bottom=Side(style='thin')
+)
+
 # ==============================================================================
 # FUNÇÕES AUXILIARES DE FORMATAÇÃO
 # ==============================================================================
@@ -57,20 +81,15 @@ def format_bold_text_for_excel(text_content, regular_font, bold_font):
     return rich_text_list
 
 def apply_borders_to_range(sheet, min_row, min_col, max_row, max_col):
-    thin_border = Border(left=Side(border_style="thin", color="000000"),
-                         right=Side(border_style="thin", color="000000"),
-                         top=Side(border_style="thin", color="000000"),
-                         bottom=Side(border_style="thin", color="000000"))
     for row in sheet.iter_rows(min_row=min_row, min_col=min_col, max_row=max_row, max_col=max_col):
         for cell in row:
-            cell.border = thin_border
+            cell.border = THIN_BORDER
 
 def format_empty_row(sheet, row_idx, regular_font):
     sheet.row_dimensions[row_idx].height = 5
     sheet.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=6)
     # Add a fill for visibility
-    white_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid") # A cor de preenchimento dos espaçamento na cor branca
-    sheet.cell(row=row_idx, column=1).fill = white_fill
+    sheet.cell(row=row_idx, column=1).fill = FILL_WHITE
 
 def estimate_rows_for_text(text, sheet, start_column, end_column, font_size=8):
     """
@@ -295,11 +314,16 @@ def process_client_data(price_data, subclass_types, excel_file_path, forro_sheet
                 df['Área'] = clean_numeric_column(df['Área'])
                 df['Altura desconectada'] = clean_numeric_column(df['Altura desconectada'])
                 df['Comprimento'] = clean_numeric_column(df['Comprimento'])
+                # Pré-processar conversões de tipo (consolidar str().strip() repetidos)
+                df['tipo_code'] = df['Sistema Construtivo R. Bassani'].astype(str).str.strip()
+                df['osb_perfil'] = df['OSB/Perfil'].astype(str).str.strip()
+                df['sistema_isolamento'] = df['Sistema de Isolamento'].astype(str).str.strip()
+
                 for _, row in df.iterrows():
-                    client_id, tipo_code, categoria = row['ID. Bloco/Torre'], str(row['Sistema Construtivo R. Bassani']).strip(), row['Classe']
-                    is_subclass, osb_perfil = tipo_code in subclass_types, str(row.get('OSB/Perfil')).strip()
+                    client_id, tipo_code, categoria = row['ID. Bloco/Torre'], row['tipo_code'], row['Classe']
+                    is_subclass, osb_perfil = tipo_code in subclass_types, row['osb_perfil']
                     is_carenagem = osb_perfil == 'Carenagem'
-                    is_la_dupla = str(row.get('OSB/Perfil')).strip() == 'Lã dupla'
+                    is_la_dupla = osb_perfil == 'Lã dupla'
                     unit, row_quantity = price_data.get(tipo_code, {}).get('Un', ''), 0
                     if categoria in ['Parede', 'Revestimento']:
                         if unit == 'm²':
@@ -316,7 +340,7 @@ def process_client_data(price_data, subclass_types, excel_file_path, forro_sheet
                         else:
                             row_quantity = 0
                     item_data, carenagem_data, insulation_data = None, None, None
-                    has_insulation = pd.notna(row['Sistema de Isolamento']) and str(row['Sistema de Isolamento']).strip() != ''
+                    has_insulation = pd.notna(row['Sistema de Isolamento']) and row['sistema_isolamento'] != ''
                     if is_carenagem:
                         tipo_code_carenagem = f"{tipo_code}-CAR"
                         desc = price_data.get(tipo_code_carenagem, {}).get('Descricao', row['Tipo'])
@@ -328,7 +352,7 @@ def process_client_data(price_data, subclass_types, excel_file_path, forro_sheet
                     else:
                         item_data = {'Tipo Code': tipo_code, 'Descricao': price_data.get(tipo_code, {}).get('Descricao', row['Tipo']), 'Quantidade': row_quantity, 'Categoria': categoria, 'is_subclass': is_subclass}
                         if has_insulation:
-                            tipo_code_insul = row['Sistema de Isolamento'].strip()
+                            tipo_code_insul = row['sistema_isolamento']
                             insulation_data = {'Tipo Code': tipo_code_insul, 'Descricao': price_data.get(tipo_code_insul, {}).get('Descricao', f"Isolamento {tipo_code_insul}"), 'Quantidade': row['Área'] * (2 if is_la_dupla else 1), 'is_la_dupla': is_la_dupla}
                     add_or_aggregate_item(client_id, item_data, has_insulation=has_insulation, insulation_data=insulation_data, carenagem_data=carenagem_data)
         except Exception as e:
@@ -345,8 +369,7 @@ def write_excel_with_formulas(summary_normal, summary_distratado, client_normal,
     regular_font = Font(name='Verdana', size=8)
     bold_white_font = Font(name='Verdana', bold=True, size=8, color="FFFFFF") # Nova
     regular_white_font = Font(name='Verdana', size=8, color="FFFFFF") # Nova
-    header_fill = PatternFill(start_color="99ccff", end_color="99ccff", fill_type="solid")
-    header_fill_kl = PatternFill(start_color="33cccc", end_color="33cccc", fill_type="solid")
+
     # Usar formato padrão Excel (inglês) para que o Excel converta para o formato local ao abrir
     currency_format = '#,##0.00'
     # Formato para números simples (metragem, quantidade)
@@ -357,15 +380,15 @@ def write_excel_with_formulas(summary_normal, summary_distratado, client_normal,
     ws_cliente = workbook.active
     ws_cliente.title = 'Cliente'
     ws_cliente.sheet_properties.tabColor = "FF00FF" # Rosa / Magenta
-    write_client_sheet(ws_cliente, client_normal, client_distratado, price_data, bold_font, header_fill, currency_format, accounting_format, regular_font, bold_white_font, regular_white_font)
+    write_client_sheet(ws_cliente, client_normal, client_distratado, price_data, bold_font, FILL_BLUE_LIGHT, currency_format, accounting_format, regular_font, bold_white_font, regular_white_font)
     
     ws_resumo = workbook.create_sheet(title='Resumo')
     ws_resumo.sheet_properties.tabColor = "666699" # Azul arroxeado
-    write_summary_sheet(ws_resumo, summary_normal, summary_distratado, price_data, bold_font, header_fill, currency_format, accounting_format, regular_font, header_fill_kl, observacoes_gerais_content, bold_white_font, regular_white_font)
+    write_summary_sheet(ws_resumo, summary_normal, summary_distratado, price_data, bold_font, FILL_BLUE_LIGHT, currency_format, accounting_format, regular_font, FILL_CYAN, observacoes_gerais_content, bold_white_font, regular_white_font)
 
     ws_aditivos_distrato = workbook.create_sheet(title='Aditivos x Distrato')
     ws_aditivos_distrato.sheet_properties.tabColor = "00B050" # Verde
-    write_aditivos_distrato_sheet(ws_aditivos_distrato, summary_normal, summary_distratado, price_data, bold_font, regular_font, header_fill, currency_format, accounting_format, number_format, bold_white_font, regular_white_font, client_normal, client_distratado)
+    write_aditivos_distrato_sheet(ws_aditivos_distrato, summary_normal, summary_distratado, price_data, bold_font, regular_font, FILL_BLUE_LIGHT, currency_format, accounting_format, number_format, bold_white_font, regular_white_font, client_normal, client_distratado)
 
     ws_relacao_media = workbook.create_sheet(title='Relação Média Material') # Nova aba
     ws_relacao_media.sheet_properties.tabColor = "FF0000" # Vermelho
@@ -411,7 +434,7 @@ def _write_summary_section(sheet, summary_data, price_data, title, start_row, bo
     title_cell.font = bold_font
     
     if title == 'RESUMO':
-        title_cell.fill = PatternFill(start_color="b3a2c7", end_color="b3a2c7", fill_type="solid")
+        title_cell.fill = FILL_PURPLE
         sheet.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=6)
         title_cell.alignment = Alignment(horizontal='center', vertical='center')
         apply_borders_to_range(sheet, start_row, 1, start_row, 6)
@@ -419,21 +442,21 @@ def _write_summary_section(sheet, summary_data, price_data, title, start_row, bo
         subtitle_row = start_row + 1
         subtitle_cell = sheet.cell(row=subtitle_row, column=1, value="SERVIÇOS ADICIONAIS (NOVO LAYOUT)")
         subtitle_cell.font = Font(color="FFFFFF", bold=True, name='Verdana', size=8)
-        subtitle_cell.fill = PatternFill(start_color="77933c", end_color="77933c", fill_type="solid")
+        subtitle_cell.fill = FILL_GREEN
         sheet.merge_cells(start_row=subtitle_row, start_column=1, end_row=subtitle_row, end_column=6)
         subtitle_cell.alignment = Alignment(horizontal='center', vertical='center')
         for col_idx in range(1, 6 + 1): # Changed to 6
-            sheet.cell(row=subtitle_row, column=col_idx).fill = PatternFill(start_color="77933c", end_color="77933c", fill_type="solid")
+            sheet.cell(row=subtitle_row, column=col_idx).fill = FILL_GREEN
         apply_borders_to_range(sheet, subtitle_row, 1, subtitle_row, 6)
 
         current_row = start_row + 2
     elif title == 'SERVIÇOS DISTRATADOS':
-        title_cell.fill = PatternFill(start_color="31859c", end_color="31859c", fill_type="solid")
+        title_cell.fill = FILL_BLUE_DARK
         sheet.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=6)
         title_cell.alignment = Alignment(horizontal='center', vertical='center')
         title_cell.font = Font(color="FFFFFF", bold=True, name='Verdana', size=8)
         for col_idx in range(1, 6 + 1): # Alterado para preencher apenas até a coluna F
-            sheet.cell(row=start_row, column=col_idx).fill = PatternFill(start_color="31859c", end_color="31859c", fill_type="solid")
+            sheet.cell(row=start_row, column=col_idx).fill = FILL_BLUE_DARK
         apply_borders_to_range(sheet, start_row, 1, start_row, 6) # Alterado para aplicar bordas apenas até a coluna F
         current_row = start_row + 1
     else:
@@ -463,7 +486,7 @@ def _write_summary_section(sheet, summary_data, price_data, title, start_row, bo
             cell.font = bold_font
             cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             if val in ['Custo MO', 'Valor Total MO']:
-                cell.fill = PatternFill(start_color="969696", end_color="969696", fill_type="solid")
+                cell.fill = FILL_GRAY
                 cell.font = bold_white_font
             elif col in [COLS['VALOR_FECHADO'], COLS['VALOR_TOTAL_NOVO']]:
                 cell.fill = header_fill_kl
@@ -910,8 +933,10 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                     if insul_key in n_insulation:
                         sub_item = n_insulation[insul_key]
                         sub_metr = round(sub_item.get('Quantidade', 0), 2)
-                        sub_unit = price_data.get(sub_item['Tipo Code'], {}).get('Un', '')
-                        sub_vunit = round(price_data.get(sub_item['Tipo Code'], {}).get('Valor', 0), 2)
+                        # Cache local para evitar múltiplos lookups
+                        sub_price_info = price_data.get(sub_item['Tipo Code'], {})
+                        sub_unit = sub_price_info.get('Un', '')
+                        sub_vunit = round(sub_price_info.get('Valor', 0), 2)
                         sub_desc = sub_item.get('Descricao', '')
 
                         # Deixar vazio coluna A (tipo) para subitens
@@ -935,8 +960,10 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                     if insul_key in d_insulation:
                         sub_item = d_insulation[insul_key]
                         sub_metr = round(sub_item.get('Quantidade', 0), 2)
-                        sub_unit = price_data.get(sub_item['Tipo Code'], {}).get('Un', '')
-                        sub_vunit = round(price_data.get(sub_item['Tipo Code'], {}).get('Valor', 0), 2)
+                        # Cache local para evitar múltiplos lookups
+                        sub_price_info = price_data.get(sub_item['Tipo Code'], {})
+                        sub_unit = sub_price_info.get('Un', '')
+                        sub_vunit = round(sub_price_info.get('Valor', 0), 2)
                         sub_desc = sub_item.get('Descricao', '')
 
                         # Deixar vazio coluna G (tipo) para subitens
@@ -1523,6 +1550,41 @@ def apply_wool_logic(data_by_client):
                     del client_items[key_without_wool]
     return data_by_client
 
+def find_matching_profile(code, known_profiles):
+    """Encontra o perfil correspondente ao código dentro de known_profiles."""
+    digit_match = re.search(r'\d+', code)
+    if not digit_match:
+        return None
+
+    digit_str = digit_match.group(0)
+    return next((p for p in known_profiles if digit_str in p), None)
+
+
+def calculate_profile_count(code, description, rule, known_profiles):
+    """Calcula quantas vezes o perfil aparece na descrição.
+
+    Args:
+        code: Código do montante (ex: 'SHF-40')
+        description: Descrição do item
+        rule: Dicionário da regra com chave 'c' indicando se deve contar
+        known_profiles: Lista de perfis conhecidos
+
+    Returns:
+        Contagem do perfil na descrição
+    """
+    # Caso especial: SHF-40 conta ocorrências de 'Ru'
+    if code == 'SHF-40':
+        return description.count('Ru')
+
+    # Se a regra não requer contagem, retorna 1
+    if not rule.get('c'):
+        return 1
+
+    # Encontra e conta o perfil correspondente
+    profile = find_matching_profile(code, known_profiles)
+    return description.count(profile) if profile else 1
+
+
 def calculate_and_add_derived_items(data_by_client, price_data):
     known_profiles = ['MS48', 'MS70', 'MS90', 'F47', 'MS140']
     rules = { 'SHF-40': {'m': 0.35, 'f': ['Ru', '/400'], 'c': True}, 'SH48-40': {'m': 0.45, 'f': ['MS48', '/400'], 'c': True}, 'SH48-60': {'m': 0.45, 'f': ['MS48', '/600'], 'c': True},
@@ -1535,7 +1597,7 @@ def calculate_and_add_derived_items(data_by_client, price_data):
             if item.get('Categoria') in ['Parede', 'Revestimento'] and item.get('Tipo Code', '').startswith('TP') and item.get('Descricao') and item.get('BaseQuantity', 0) > 0:
                 for code, rule in rules.items():
                     if all(f in item['Descricao'] for f in rule['f']):
-                        count = item['Descricao'].count('Ru') if code == 'SHF-40' else (item['Descricao'].count(next((p for p in known_profiles if re.search(r'\d+', code).group(0) in p), None)) if rule['c'] and next((p for p in known_profiles if re.search(r'\d+', code).group(0) in p), None) else 1)
+                        count = calculate_profile_count(code, item['Descricao'], rule, known_profiles)
                         count = 1 if count == 0 else count
                         if count > 0: contributions[code].append({'item_key': item_key, 'count': count})
         
@@ -1550,6 +1612,22 @@ def calculate_and_add_derived_items(data_by_client, price_data):
                         'formula_contributors': contribs, 'formula_multiplier': rules[code]['m']
                     }
     return data_by_client
+
+
+def process_guias_montantes_logic(data_by_client, price_data, include_guias_montantes):
+    """Processa a lógica de Guias e Montantes (consolidado para evitar duplicação).
+
+    Args:
+        data_by_client: Dados do cliente a processar
+        price_data: Dados de preços
+        include_guias_montantes: Se deve incluir Guias e Montantes
+
+    Returns:
+        Dados processados com lógica de Guias e Montantes aplicada
+    """
+    if include_guias_montantes:
+        return calculate_and_add_derived_items(data_by_client, price_data)
+    return remove_guias_e_montantes(data_by_client)
 
 
 def remove_guias_e_montantes(data_by_client):
@@ -1714,10 +1792,7 @@ if __name__ == '__main__':
     )
     print("  Aplicando lógicas de negócio...")
     dados_cliente_normal = apply_wool_logic(dados_cliente_normal)
-    if include_guias_montantes:
-        dados_cliente_normal = calculate_and_add_derived_items(dados_cliente_normal, precos)
-    else:
-        dados_cliente_normal = remove_guias_e_montantes(dados_cliente_normal)
+    dados_cliente_normal = process_guias_montantes_logic(dados_cliente_normal, precos, include_guias_montantes)
     dados_resumo_normal = process_summary_data(dados_cliente_normal)
 
     print("Processando dados para SERVIÇOS DISTRATADOS...")
@@ -1730,10 +1805,7 @@ if __name__ == '__main__':
     )
     print("  Aplicando lógicas de negócio...")
     dados_cliente_distratado = apply_wool_logic(dados_cliente_distratado)
-    if include_guias_montantes:
-        dados_cliente_distratado = calculate_and_add_derived_items(dados_cliente_distratado, precos)
-    else:
-        dados_cliente_distratado = remove_guias_e_montantes(dados_cliente_distratado)
+    dados_cliente_distratado = process_guias_montantes_logic(dados_cliente_distratado, precos, include_guias_montantes)
     dados_resumo_distratado = process_summary_data(dados_cliente_distratado)
 
     print("Gerando arquivo Excel...")
