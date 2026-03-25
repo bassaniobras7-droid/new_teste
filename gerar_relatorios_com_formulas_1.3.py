@@ -9,6 +9,7 @@ import math
 import re
 import os
 import glob
+from functools import lru_cache  # ✅ Otimização Fase 3: cache de funções
 import msoffcrypto
 
 # Definições globais para colunas
@@ -95,9 +96,32 @@ def format_empty_row(sheet, row_idx, regular_font):
     sheet.cell(row=row_idx, column=1).fill = FILL_WHITE
 
 def estimate_rows_for_text(text, sheet, start_column, end_column, font_size=8):
-    """
-    Estima o número de linhas necessárias para um texto, usando uma heurística
-    e aplicando uma correção com base no feedback do usuário.
+    """Estima linhas necessárias para uma célula Excel com wrap_text.
+
+    Utiliza heurística baseada em largura de coluna (em Excel width units):
+    - Soma as larguras das colunas mescladas [start_column, end_column]
+    - Cada unidade de largura ~6.76 pixels em Verdana 8pt
+    - Multiplica por 1.5 para obter chars_per_visual_line (empiricamente calibrado)
+    - Divide o comprimento do texto por chars_per_visual_line para estimar quebras
+
+    Args:
+        text: String a renderizar (suporta quebras \\n)
+        sheet: Worksheet do openpyxl (para ler column_dimensions)
+        start_column: Coluna inicial do intervalo (int, ex: 1 para 'A')
+        end_column: Coluna final do intervalo (int, ex: 6 para 'F')
+        font_size: Tamanho da fonte (padrão: 8pt Verdana)
+
+    Heurísticas/constantes:
+        - Fallback de largura: 8.43 (padrão Excel)
+        - Fator de multiplicação: 1.5 (calibrado experimentalmente)
+        - Correction factor: 12 linhas (ajuste empírico baseado em feedback)
+
+    Returns:
+        Número de linhas estimado (mínimo: 1)
+
+    Note:
+        A correction_factor = 12 reduz o resultado para compensar a super-estimativa
+        típica de 12 linhas. Pode ser ajustado se o feedback do usuário mudar.
     """
     total_excel_width = 0
     for col_idx in range(start_column, end_column + 1):
@@ -180,6 +204,7 @@ def sort_client_id_key(client_id):
     return (3, 0, natural_sort_key(client_id))
 
 
+@lru_cache(maxsize=1)  # ✅ Otimização Fase 3: cache automático de dados de preço
 def load_price_data(filename='Valores Ctba.csv'):
     try:
         df_prices = pd.read_csv(filename, sep=';', header=0)
@@ -201,6 +226,7 @@ def load_price_data(filename='Valores Ctba.csv'):
         print(f"ERRO ao carregar o arquivo de preços: {e}")
         return {}
 
+@lru_cache(maxsize=1)  # ✅ Otimização Fase 3: cache automático de subclasses
 def load_subclass_data(filename='Subclasse.csv'):
     try:
         df_subclass = pd.read_csv(filename, sep=';', header=0)
