@@ -10,6 +10,8 @@ import re
 import os
 import glob
 from functools import lru_cache  # ✅ Otimização Fase 3: cache de funções
+from dataclasses import dataclass, field  # ✅ Otimização Fase 3: type-safe data structures
+from typing import Dict, Optional, List  # ✅ Otimização Fase 3: type hints
 import msoffcrypto
 
 # Definições globais para colunas
@@ -42,6 +44,33 @@ THIN_BORDER = Border(
 
 # === CONSTANTES GLOBAIS DE REGEX (Otimização Fase 2: cache de padrões compilados) ===
 DIGIT_PATTERN = re.compile(r'\d+')  # Pré-compilado: reutilizar em loops
+
+# === DATACLASSES PARA ESTRUTURA DE DADOS (Otimização Fase 3: type safety) ===
+
+@dataclass
+class SubItem:
+    """Sub-item de um item principal (isolamento, carenagem, perfil)."""
+    tipo_code: str
+    descricao: str
+    quantidade: float
+    is_la_dupla: bool = False
+
+@dataclass
+class ClientItem:
+    """Item de cliente com type safety e autocomplete IDE."""
+    tipo_code: str
+    descricao: Optional[str]
+    base_quantity: float
+    categoria: str
+    has_insulation: bool = False
+    is_subclass: bool = False
+    logic_applied: bool = False
+    formula_base: float = 0.0
+    formula_multiplier: float = 1.0
+    insulation_items: Dict[str, SubItem] = field(default_factory=dict)
+    carenagem_items: Dict[str, SubItem] = field(default_factory=dict)
+    perfil_items: Dict[str, SubItem] = field(default_factory=dict)
+    formula_contributors: List[dict] = field(default_factory=list)
 
 # ==============================================================================
 # FUNÇÕES AUXILIARES DE FORMATAÇÃO
@@ -262,31 +291,32 @@ def find_latest_excel_file(prefix):
 def process_summary_data(client_data):
     summary_agg = {}
     for client_id, client_items in client_data.items():
-        subclass_total_qty = sum(item_data.get('BaseQuantity', 0) for item_data in client_items.values() if item_data.get('is_subclass', False))
+        # ✅ Otimização Fase 3: usar atributos dataclass
+        subclass_total_qty = sum(item_data.base_quantity for item_data in client_items.values() if item_data.is_subclass)
 
         for item_data in client_items.values():
-            cat = item_data['Categoria']
+            cat = item_data.categoria
             summary_cat = 'Paredes' if cat in ['Parede', 'Revestimento'] else ('Forros' if cat == 'Forro' else cat)
 
-            for carenagem_item in item_data.get('carenagem_items', {}).values():
-                carenagem_tipo_code = carenagem_item['Tipo Code']
+            for carenagem_item in item_data.carenagem_items.values():
+                carenagem_tipo_code = carenagem_item.tipo_code
                 if carenagem_tipo_code not in summary_agg:
-                    summary_agg[carenagem_tipo_code] = {'Quantidade': 0, 'Descricao': carenagem_item['Descricao'], 'Categoria': summary_cat}
-                summary_agg[carenagem_tipo_code]['Quantidade'] += carenagem_item['Quantidade']
+                    summary_agg[carenagem_tipo_code] = {'Quantidade': 0, 'Descricao': carenagem_item.descricao, 'Categoria': summary_cat}
+                summary_agg[carenagem_tipo_code]['Quantidade'] += carenagem_item.quantidade
 
-            for insulation_item in item_data.get('insulation_items', {}).values():
-                insul_tipo_code = insulation_item['Tipo Code']
+            for insulation_item in item_data.insulation_items.values():
+                insul_tipo_code = insulation_item.tipo_code
                 if insul_tipo_code not in summary_agg:
-                    summary_agg[insul_tipo_code] = {'Quantidade': 0, 'Descricao': insulation_item['Descricao'], 'Categoria': 'Isolamento'}
-                summary_agg[insul_tipo_code]['Quantidade'] += insulation_item['Quantidade']
+                    summary_agg[insul_tipo_code] = {'Quantidade': 0, 'Descricao': insulation_item.descricao, 'Categoria': 'Isolamento'}
+                summary_agg[insul_tipo_code]['Quantidade'] += insulation_item.quantidade
 
-            main_tipo_code = item_data['Tipo Code']
-            qty = item_data['BaseQuantity']
+            main_tipo_code = item_data.tipo_code
+            qty = item_data.base_quantity
             if main_tipo_code == 'FT16' and subclass_total_qty > 0:
                 qty -= subclass_total_qty
-            
+
             if main_tipo_code not in summary_agg:
-                summary_agg[main_tipo_code] = {'Quantidade': 0, 'Descricao': item_data['Descricao'], 'Categoria': summary_cat}
+                summary_agg[main_tipo_code] = {'Quantidade': 0, 'Descricao': item_data.descricao, 'Categoria': summary_cat}
             summary_agg[main_tipo_code]['Quantidade'] += qty
     return summary_agg
 
@@ -297,30 +327,50 @@ def process_client_data(price_data, subclass_types, excel_file_path, forro_sheet
         if client_id not in data_by_client: data_by_client[client_id] = {}
         key = (item_data['Tipo Code'], item_data['Categoria'], has_insulation)
         if key not in data_by_client[client_id]:
-            data_by_client[client_id][key] = {
-                'Tipo Code': item_data['Tipo Code'], 'Descricao': item_data.get('Descricao'), 'BaseQuantity': 0,
-                'Categoria': item_data['Categoria'], 'has_insulation': has_insulation, 'insulation_items': {},
-                'carenagem_items': {}, 'perfil_items': {}, 'is_subclass': item_data.get('is_subclass', False)
-            }
-        if item_data.get('Descricao') and not data_by_client[client_id][key].get('Descricao'):
-            data_by_client[client_id][key]['Descricao'] = item_data.get('Descricao')
-        data_by_client[client_id][key]['BaseQuantity'] += item_data.get('Quantidade', 0)
-        if item_data.get('is_subclass', False): data_by_client[client_id][key]['is_subclass'] = True
+            # ✅ Otimização Fase 3: usar dataclass em vez de dicionário
+            data_by_client[client_id][key] = ClientItem(
+                tipo_code=item_data['Tipo Code'],
+                descricao=item_data.get('Descricao'),
+                base_quantity=0,
+                categoria=item_data['Categoria'],
+                has_insulation=has_insulation,
+                is_subclass=item_data.get('is_subclass', False)
+            )
+        item = data_by_client[client_id][key]
+        if item_data.get('Descricao') and not item.descricao:
+            item.descricao = item_data.get('Descricao')
+        item.base_quantity += item_data.get('Quantidade', 0)
+        if item_data.get('is_subclass', False): item.is_subclass = True
         if insulation_data:
             insul_key = insulation_data['Tipo Code']
-            if insul_key not in data_by_client[client_id][key]['insulation_items']:
-                data_by_client[client_id][key]['insulation_items'][insul_key] = {'Tipo Code': insul_key, 'Descricao': insulation_data['Descricao'], 'Quantidade': 0, 'is_la_dupla': insulation_data.get('is_la_dupla', False)}
-            data_by_client[client_id][key]['insulation_items'][insul_key]['Quantidade'] += insulation_data['Quantidade']
+            if insul_key not in item.insulation_items:
+                item.insulation_items[insul_key] = SubItem(
+                    tipo_code=insul_key,
+                    descricao=insulation_data['Descricao'],
+                    quantidade=0,
+                    is_la_dupla=insulation_data.get('is_la_dupla', False)
+                )
+            item.insulation_items[insul_key].quantidade += insulation_data['Quantidade']
         if carenagem_data:
             carenagem_key = carenagem_data['Descricao']
-            if carenagem_key not in data_by_client[client_id][key]['carenagem_items']:
-                data_by_client[client_id][key]['carenagem_items'][carenagem_key] = {'Tipo Code': carenagem_data['Tipo Code'], 'Descricao': carenagem_data['Descricao'], 'Quantidade': 0}
-            data_by_client[client_id][key]['carenagem_items'][carenagem_key]['Quantidade'] += carenagem_data['Quantidade']
+            if carenagem_key not in item.carenagem_items:
+                item.carenagem_items[carenagem_key] = SubItem(
+                    tipo_code=carenagem_data['Tipo Code'],
+                    descricao=carenagem_data['Descricao'],
+                    quantidade=0,
+                    is_la_dupla=False
+                )
+            item.carenagem_items[carenagem_key].quantidade += carenagem_data['Quantidade']
         if perfil_data:
             perfil_key = perfil_data['Tipo Code']
-            if perfil_key not in data_by_client[client_id][key]['perfil_items']:
-                data_by_client[client_id][key]['perfil_items'][perfil_key] = {'Tipo Code': perfil_key, 'Descricao': perfil_data['Descricao'], 'Quantidade': 0}
-            data_by_client[client_id][key]['perfil_items'][perfil_key]['Quantidade'] += perfil_data['Quantidade']
+            if perfil_key not in item.perfil_items:
+                item.perfil_items[perfil_key] = SubItem(
+                    tipo_code=perfil_key,
+                    descricao=perfil_data['Descricao'],
+                    quantidade=0,
+                    is_la_dupla=False
+                )
+            item.perfil_items[perfil_key].quantidade += perfil_data['Quantidade']
 
     for sheet_name, process_func in [(forro_sheet, 'forro'), (generico_sheet, 'generico'), (paredes_sheet, 'paredes')]:
         try:
@@ -839,8 +889,9 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
         result = {}
         if not dataset or block_id not in dataset: return result
         for item in dataset[block_id].values():
-            if normalize_category(item.get('Categoria')) == category:
-                result[item.get('Tipo Code', '')] = item
+            # ✅ Otimização Fase 3: usar atributos dataclass
+            if normalize_category(item.categoria) == category:
+                result[item.tipo_code] = item
         return result
 
     current_row = 1
@@ -914,10 +965,11 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                 # ADD
                 if tipo in n_items:
                     item = n_items[tipo]
-                    metr = round(item.get('BaseQuantity', 0), 2)
+                    # ✅ Otimização Fase 3: usar atributos dataclass
+                    metr = round(item.base_quantity, 2)
                     unit = price_data.get(tipo, {}).get('Un', '')
                     vunit = round(price_data.get(tipo, {}).get('Valor', 0), 2)
-                    desc = item.get('Descricao', '')
+                    desc = item.descricao or ''
                     cA = sheet.cell(row=row, column=1, value=tipo)
                     cA.font = regular_font; cA.alignment = Alignment(horizontal='center', vertical='center')
                     cB = sheet.cell(row=row, column=2, value=desc)
@@ -939,10 +991,11 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                 # DIST
                 if tipo in d_items:
                     item = d_items[tipo]
-                    metr = round(item.get('BaseQuantity', 0), 2)
+                    # ✅ Otimização Fase 3: usar atributos dataclass
+                    metr = round(item.base_quantity, 2)
                     unit = price_data.get(tipo, {}).get('Un', '')
                     vunit = round(price_data.get(tipo, {}).get('Valor', 0), 2)
-                    desc = item.get('Descricao', '')
+                    desc = item.descricao or ''
                     cG = sheet.cell(row=row, column=7, value=tipo)
                     cG.font = regular_font; cG.alignment = Alignment(horizontal='center', vertical='center')
                     cH = sheet.cell(row=row, column=8, value=desc)
@@ -968,8 +1021,9 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                 current_row += 1
 
                 # === SUBITENS (ISOLAMENTO ACÚSTICO) ===
-                n_insulation = n_items.get(tipo, {}).get('insulation_items', {}) if tipo in n_items else {}
-                d_insulation = d_items.get(tipo, {}).get('insulation_items', {}) if tipo in d_items else {}
+                # ✅ Otimização Fase 3: usar atributos dataclass
+                n_insulation = n_items[tipo].insulation_items if tipo in n_items else {}
+                d_insulation = d_items[tipo].insulation_items if tipo in d_items else {}
 
                 # Coletar todas as chaves de isolamento (ADD + DIST)
                 all_insul_keys = set(n_insulation.keys()) | set(d_insulation.keys())
@@ -980,12 +1034,13 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                     # ADD - Isolamento
                     if insul_key in n_insulation:
                         sub_item = n_insulation[insul_key]
-                        sub_metr = round(sub_item.get('Quantidade', 0), 2)
+                        # ✅ Otimização Fase 3: usar atributos dataclass
+                        sub_metr = round(sub_item.quantidade, 2)
                         # Cache local para evitar múltiplos lookups
-                        sub_price_info = price_data.get(sub_item['Tipo Code'], {})
+                        sub_price_info = price_data.get(sub_item.tipo_code, {})
                         sub_unit = sub_price_info.get('Un', '')
                         sub_vunit = round(sub_price_info.get('Valor', 0), 2)
-                        sub_desc = sub_item.get('Descricao', '')
+                        sub_desc = sub_item.descricao or ''
 
                         # Deixar vazio coluna A (tipo) para subitens
                         cB_sub = sheet.cell(row=sub_row, column=2, value=sub_desc)
@@ -1007,12 +1062,12 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
                     # DIST - Isolamento
                     if insul_key in d_insulation:
                         sub_item = d_insulation[insul_key]
-                        sub_metr = round(sub_item.get('Quantidade', 0), 2)
+                        sub_metr = round(sub_item.quantidade, 2)
                         # Cache local para evitar múltiplos lookups
-                        sub_price_info = price_data.get(sub_item['Tipo Code'], {})
+                        sub_price_info = price_data.get(sub_item.tipo_code, {})
                         sub_unit = sub_price_info.get('Un', '')
                         sub_vunit = round(sub_price_info.get('Valor', 0), 2)
-                        sub_desc = sub_item.get('Descricao', '')
+                        sub_desc = sub_item.descricao
 
                         # Deixar vazio coluna G (tipo) para subitens
                         cH_sub = sheet.cell(row=sub_row, column=8, value=sub_desc)
@@ -1336,9 +1391,10 @@ def write_client_sheet(sheet, client_normal, client_distratado, price_data, bold
 def _write_client_insulation_rows(sheet, item, price_data, current_row, regular_font, currency_format, accounting_format, m_cell_ref, COLS):
     """Escreve as linhas de isolamento acústico de um item."""
     insulation_cell_references = []
-    for sub_item_key, sub_item in sorted(item.get('insulation_items', {}).items()):
-        price_info_sub = price_data.get(sub_item['Tipo Code'], {'Valor': 0, 'Un': ''})
-        sub_desc_cell = sheet.cell(row=current_row, column=COLS['DESC'], value=sub_item['Descricao'])
+    # ✅ Otimização Fase 3: usar atributos dataclass
+    for sub_item_key, sub_item in sorted(item.insulation_items.items()):
+        price_info_sub = price_data.get(sub_item.tipo_code, {'Valor': 0, 'Un': ''})
+        sub_desc_cell = sheet.cell(row=current_row, column=COLS['DESC'], value=sub_item.descricao)
         sub_desc_cell.alignment = Alignment(wrap_text=True, vertical='center')
         sub_desc_cell.font = regular_font
 
@@ -1347,10 +1403,10 @@ def _write_client_insulation_rows(sheet, item, price_data, current_row, regular_
         sub_m_cell.font = regular_font
         sub_m_cell.alignment = Alignment(vertical='center')
 
-        if sub_item.get('is_la_dupla'):
+        if sub_item.is_la_dupla:
             sub_m_cell.value = f"={m_cell_ref}*2"
         else:
-            sub_m_cell.value = sub_item['Quantidade']
+            sub_m_cell.value = sub_item.quantidade
             insulation_cell_references.append(sub_m_cell.coordinate)
 
         sub_un_cell = sheet.cell(row=current_row, column=COLS['UN'], value=price_info_sub['Un'])
@@ -1374,12 +1430,13 @@ def _write_client_insulation_rows(sheet, item, price_data, current_row, regular_
 
 def _write_client_carenagem_rows(sheet, item, price_data, current_row, regular_font, currency_format, accounting_format, COLS):
     """Escreve as linhas de carenagem de um item."""
-    for sub_item_key, sub_item in sorted(item.get('carenagem_items', {}).items()):
-        price_info_sub = price_data.get(sub_item['Tipo Code'], {'Valor': 0, 'Un': ''})
-        sub_desc_cell = sheet.cell(row=current_row, column=COLS['DESC'], value=sub_item['Descricao'])
+    # ✅ Otimização Fase 3: usar atributos dataclass
+    for sub_item_key, sub_item in sorted(item.carenagem_items.items()):
+        price_info_sub = price_data.get(sub_item.tipo_code, {'Valor': 0, 'Un': ''})
+        sub_desc_cell = sheet.cell(row=current_row, column=COLS['DESC'], value=sub_item.descricao)
         sub_desc_cell.alignment = Alignment(wrap_text=True, vertical='center')
         sub_desc_cell.font = regular_font
-        sub_m_cell = sheet.cell(row=current_row, column=COLS['METRAGEM'], value=sub_item['Quantidade'])
+        sub_m_cell = sheet.cell(row=current_row, column=COLS['METRAGEM'], value=sub_item.quantidade)
         sub_m_cell.number_format = currency_format
         sub_m_cell.font = regular_font
         sub_m_cell.alignment = Alignment(vertical='center')
@@ -1407,7 +1464,8 @@ def _write_client_section(sheet, items_by_key, price_data, start_row, bold_font,
 
     cats = {'Forro': [], 'Paredes_e_Revestimentos': [], 'Guias e Montantes': []}
     for item_key, item_data in items_by_key.items():
-        category = 'Paredes_e_Revestimentos' if item_data.get('Categoria') in ['Parede', 'Revestimento'] else item_data.get('Categoria')
+        # ✅ Otimização Fase 3: usar atributos dataclass
+        category = 'Paredes_e_Revestimentos' if item_data.categoria in ['Parede', 'Revestimento'] else item_data.categoria
         if category in cats: cats[category].append((item_key, item_data))
 
     for cat_name, cat_label in [('Forro', 'Forros'), ('Paredes_e_Revestimentos', 'Paredes e Revestimentos'), ('Guias e Montantes', 'Guias e Montantes')]:
@@ -1424,18 +1482,19 @@ def _write_client_section(sheet, items_by_key, price_data, start_row, bold_font,
         section_start_row, ft16_placeholder_cell, ft16_base_quantity, subtraction_cell_list = current_row, None, 0, []
 
         if cat_name == 'Paredes_e_Revestimentos':
-            sorted_items = sorted(cats[cat_name], key=lambda x: (0 if x[1]['Tipo Code'].startswith('TP') else 1, natural_sort_key(x[1]['Tipo Code'])))
+            sorted_items = sorted(cats[cat_name], key=lambda x: (0 if x[1].tipo_code.startswith('TP') else 1, natural_sort_key(x[1].tipo_code)))
         else: # Forros, Guias e Montantes
-            sorted_items = sorted(cats[cat_name], key=lambda x: natural_sort_key(x[1]['Tipo Code']))
+            sorted_items = sorted(cats[cat_name], key=lambda x: natural_sort_key(x[1].tipo_code))
         
         for item_key, item in sorted_items:
-            price_info = price_data.get(item['Tipo Code'], {'Valor': 0, 'Un': ''})
-            main_item_row, is_subclass_item = current_row, item.get('is_subclass', False)
+            # ✅ Otimização Fase 3: usar atributos dataclass
+            price_info = price_data.get(item.tipo_code, {'Valor': 0, 'Un': ''})
+            main_item_row, is_subclass_item = current_row, item.is_subclass
 
             # Calculate number of sub-items for merging
-            num_sub_items = len(item.get('insulation_items', {})) + len(item.get('carenagem_items', {}))
+            num_sub_items = len(item.insulation_items) + len(item.carenagem_items)
 
-            tipo_cell = sheet.cell(row=main_item_row, column=COLS['TIPO'], value=item['Tipo Code'])
+            tipo_cell = sheet.cell(row=main_item_row, column=COLS['TIPO'], value=item.tipo_code)
             tipo_cell.alignment = Alignment(horizontal='center', vertical='center')
             tipo_cell.font = regular_font
 
@@ -1448,35 +1507,35 @@ def _write_client_section(sheet, items_by_key, price_data, start_row, bold_font,
                     end_column=COLS['TIPO']
                 )
 
-            desc_cell = sheet.cell(row=main_item_row, column=COLS['DESC'], value=item['Descricao'])
+            desc_cell = sheet.cell(row=main_item_row, column=COLS['DESC'], value=item.descricao)
             desc_cell.alignment = Alignment(wrap_text=True, vertical='center')
             desc_cell.font = regular_font
-            
+
             m_cell_ref = f"{get_column_letter(COLS['METRAGEM'])}{main_item_row}"
             item_key_to_cell_map[item_key] = m_cell_ref
-            
+
             metragem_cell = sheet.cell(row=main_item_row, column=COLS['METRAGEM'])
             metragem_cell.number_format = currency_format
             metragem_cell.font = regular_font
             metragem_cell.alignment = Alignment(vertical='center')
-            
+
             # GARANTIR que a BaseQuantity seja sempre escrita como valor numérico inicial
-            base_qty = item.get('BaseQuantity', 0)
+            base_qty = item.base_quantity
             try:
                 base_qty_num = float(str(base_qty).strip().replace(',', '.'))
             except Exception:
                 base_qty_num = 0.0
             metragem_cell.value = round(base_qty_num, 2)
 
-            if 'formula_contributors' in item:
-                parts = [f"({item_key_to_cell_map[c['item_key']]}*{c['count']})" if c['count'] > 1 else item_key_to_cell_map[c['item_key']] for c in item['formula_contributors'] if c['item_key'] in item_key_to_cell_map]
+            if item.formula_contributors:
+                parts = [f"({item_key_to_cell_map[c['item_key']]}*{c['count']})" if c['count'] > 1 else item_key_to_cell_map[c['item_key']] for c in item.formula_contributors if c['item_key'] in item_key_to_cell_map]
                 if parts:
-                    final_formula = f"=CEILING(({'+'.join(parts)})*{item['formula_multiplier']},1)"
+                    final_formula = f"=CEILING(({'+'.join(parts)})*{item.formula_multiplier},1)"
                 else:
                     # Caso não haja partes da fórmula, manter a metragem numérica (evita strings como '1.4')
                     final_formula = round(base_qty_num, 2)
                 metragem_cell.value = final_formula
-            
+
             un_cell = sheet.cell(row=main_item_row, column=COLS['UN'], value=price_info['Un'])
             un_cell.font = regular_font
             un_cell.alignment = Alignment(horizontal='center', vertical='center')
@@ -1490,7 +1549,7 @@ def _write_client_section(sheet, items_by_key, price_data, start_row, bold_font,
             valor_total_cell.font = regular_font
             valor_total_cell.alignment = Alignment(vertical='center')
             if is_subclass_item: subtraction_cell_list.append(m_cell_ref)
-            if item['Tipo Code'] == 'FT16': ft16_placeholder_cell, ft16_base_quantity = m_cell_ref, item.get('FormulaBase', item['BaseQuantity'])
+            if item.tipo_code == 'FT16': ft16_placeholder_cell, ft16_base_quantity = m_cell_ref, item.formula_base if item.formula_base > 0 else item.base_quantity
             apply_borders_to_range(sheet, main_item_row, COLS['TIPO'], main_item_row, COLS['VALOR_TOTAL']) # Add borders
             current_row += 1
 
@@ -1502,22 +1561,22 @@ def _write_client_section(sheet, items_by_key, price_data, start_row, bold_font,
             current_row = _write_client_carenagem_rows(sheet, item, price_data, current_row, regular_font, currency_format, accounting_format, COLS)
 
             # --- FORMULA LOGIC FOR MAIN ITEM (AFTER SUB-ITEMS ARE PROCESSED) ---
-            if cat_name != 'Guias e Montantes' and not is_subclass_item and item['Tipo Code'] != 'FT16':
+            if cat_name != 'Guias e Montantes' and not is_subclass_item and item.tipo_code != 'FT16':
                 # Usar o valor numérico já calculado anteriormente para evitar strings como '1.4'
                 final_metragem_value = round(base_qty_num, 2)
 
-                if item.get('logic_applied'): # Merged items (BASE + LÃ)
+                if item.logic_applied: # Merged items (BASE + LÃ)
                     formula_parts = []
                     # Garantir que base_val seja numérico
                     try:
-                        base_val = float(str(item.get('FormulaBase', item['BaseQuantity'])).strip().replace(',', '.'))
+                        base_val = float(str(item.formula_base if item.formula_base > 0 else item.base_quantity).strip().replace(',', '.'))
                     except Exception:
                         base_val = 0.0
                     if base_val > 0:
                         formula_parts.append(str(base_val))
                     if insulation_cell_references: # Should have one reference
                         formula_parts.extend(insulation_cell_references)
-                    
+
                     if len(formula_parts) > 1:
                         final_metragem_value = f"={'+'.join(formula_parts)}"
                     elif len(formula_parts) == 1:
@@ -1526,7 +1585,7 @@ def _write_client_section(sheet, items_by_key, price_data, start_row, bold_font,
                             final_metragem_value = f"={formula_parts[0]}"
                         else:
                             final_metragem_value = float(formula_parts[0]) if formula_parts[0].replace('.','',1).isdigit() else formula_parts[0]
-                elif item.get('insulation_items'): # Non-merged item with insulation (just LÃ)
+                elif item.insulation_items: # Non-merged item with insulation (just LÃ)
                     if insulation_cell_references: # Should have one reference
                         final_metragem_value = f"={insulation_cell_references[0]}" # Only the insulation cell ref
                     else:
@@ -1593,18 +1652,19 @@ def apply_wool_logic(data_by_client):
             if len(keys) == 2:
                 key_with_wool = next((k for k in keys if k[2]), None)
                 key_without_wool = next((k for k in keys if not k[2]), None)
-                
+
                 if key_with_wool and key_without_wool:
                     item_com_la, item_sem_la = client_items[key_with_wool], client_items[key_without_wool]
-                    original_qty_com_la, qty_sem_la = item_com_la['BaseQuantity'], item_sem_la['BaseQuantity']
-                    item_com_la['FormulaBase'] = qty_sem_la
-                    item_com_la['BaseQuantity'] = qty_sem_la + original_qty_com_la
-                    if item_com_la['insulation_items']:
-                        insul_key = next(iter(item_com_la['insulation_items']))
-                        if not item_com_la['insulation_items'][insul_key].get('is_la_dupla', False):
-                            item_com_la['insulation_items'][insul_key]['Quantidade'] = original_qty_com_la
-                    item_com_la['logic_applied'] = True
-                    item_com_la['carenagem_items'].update(item_sem_la.get('carenagem_items', {}))
+                    # ✅ Otimização Fase 3: usar atributos dataclass
+                    original_qty_com_la, qty_sem_la = item_com_la.base_quantity, item_sem_la.base_quantity
+                    item_com_la.formula_base = qty_sem_la
+                    item_com_la.base_quantity = qty_sem_la + original_qty_com_la
+                    if item_com_la.insulation_items:
+                        insul_key = next(iter(item_com_la.insulation_items))
+                        if not item_com_la.insulation_items[insul_key].is_la_dupla:
+                            item_com_la.insulation_items[insul_key].quantidade = original_qty_com_la
+                    item_com_la.logic_applied = True
+                    item_com_la.carenagem_items.update(item_sem_la.carenagem_items)
                     del client_items[key_without_wool]
     return data_by_client
 
@@ -1653,23 +1713,29 @@ def calculate_and_add_derived_items(data_by_client, price_data):
     for client_id, client_items in data_by_client.items():
         contributions = {code: [] for code in rules}
         for item_key, item in client_items.items():
-            if item.get('Categoria') in ['Parede', 'Revestimento'] and item.get('Tipo Code', '').startswith('TP') and item.get('Descricao') and item.get('BaseQuantity', 0) > 0:
+            # ✅ Otimização Fase 3: usar atributos dataclass
+            if item.categoria in ['Parede', 'Revestimento'] and item.tipo_code.startswith('TP') and item.descricao and item.base_quantity > 0:
                 for code, rule in rules.items():
-                    if all(f in item['Descricao'] for f in rule['f']):
-                        count = calculate_profile_count(code, item['Descricao'], rule, known_profiles)
+                    if all(f in item.descricao for f in rule['f']):
+                        count = calculate_profile_count(code, item.descricao, rule, known_profiles)
                         count = 1 if count == 0 else count
                         if count > 0: contributions[code].append({'item_key': item_key, 'count': count})
-        
+
         for code, contribs in contributions.items():
             if contribs:
-                total_contrib_val = sum(client_items[c['item_key']].get('BaseQuantity', 0) * c['count'] for c in contribs)
+                total_contrib_val = sum(client_items[c['item_key']].base_quantity * c['count'] for c in contribs)
                 final_qty = math.ceil(total_contrib_val * rules[code]['m'])
                 if final_qty > 0:
-                    data_by_client[client_id][(code, 'Guias e Montantes', False)] = {
-                        'Tipo Code': code, 'Descricao': price_data.get(code, {}).get('Descricao', f'Montante {code}'), 'BaseQuantity': final_qty, 'Categoria': 'Guias e Montantes',
-                        'has_insulation': False, 'insulation_items': {}, 'carenagem_items': {}, 'is_subclass': False,
-                        'formula_contributors': contribs, 'formula_multiplier': rules[code]['m']
-                    }
+                    data_by_client[client_id][(code, 'Guias e Montantes', False)] = ClientItem(
+                        tipo_code=code,
+                        descricao=price_data.get(code, {}).get('Descricao', f'Montante {code}'),
+                        base_quantity=final_qty,
+                        categoria='Guias e Montantes',
+                        has_insulation=False,
+                        is_subclass=False,
+                        formula_contributors=contribs,
+                        formula_multiplier=rules[code]['m']
+                    )
     return data_by_client
 
 
@@ -1696,7 +1762,7 @@ def remove_guias_e_montantes(data_by_client):
     opta por não adicioná-la.
     """
     for client_id, client_items in data_by_client.items():
-        keys_to_remove = [k for k, v in client_items.items() if v.get('Categoria') == 'Guias e Montantes']
+        keys_to_remove = [k for k, v in client_items.items() if v.categoria == 'Guias e Montantes']
         for k in keys_to_remove:
             del client_items[k]
     return data_by_client
