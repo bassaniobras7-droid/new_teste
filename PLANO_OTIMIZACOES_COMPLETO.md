@@ -40,7 +40,7 @@ Duplicação:      67% redução         📉
 
 ## 🔵 FASE 2: MÉDIO (2-3 horas) - ALTO IMPACTO
 
-**Status:** ⏳ Pendente
+**Status:** ✅ **CONCLUÍDA** (Commits: 1a0be2c, fb38120)
 
 ### 1. Otimizar `.iterrows()` → `.itertuples()` ou Vetorização
 
@@ -183,7 +183,7 @@ Testabilidade:    Significativa       🧪
 
 ## 🟣 FASE 3: COMPLETO (2-3 horas) - MELHORIA ARQUITETURAL
 
-**Status:** ⏳ Pendente
+**Status:** ✅ **CONCLUÍDA** (Commit: 715ae04)
 
 ### 1. Refatorar Estrutura com Dataclass
 
