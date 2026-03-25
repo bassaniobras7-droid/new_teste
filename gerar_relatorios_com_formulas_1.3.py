@@ -39,6 +39,9 @@ THIN_BORDER = Border(
     bottom=Side(style='thin')
 )
 
+# === CONSTANTES GLOBAIS DE REGEX (Otimização Fase 2: cache de padrões compilados) ===
+DIGIT_PATTERN = re.compile(r'\d+')  # Pré-compilado: reutilizar em loops
+
 # ==============================================================================
 # FUNÇÕES AUXILIARES DE FORMATAÇÃO
 # ==============================================================================
@@ -1552,7 +1555,8 @@ def apply_wool_logic(data_by_client):
 
 def find_matching_profile(code, known_profiles):
     """Encontra o perfil correspondente ao código dentro de known_profiles."""
-    digit_match = re.search(r'\d+', code)
+    # ✅ Otimização Fase 2: usar regex pré-compilado (DIGIT_PATTERN) em lugar de re.search()
+    digit_match = DIGIT_PATTERN.search(code)
     if not digit_match:
         return None
 
