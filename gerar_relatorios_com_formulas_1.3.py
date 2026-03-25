@@ -429,44 +429,47 @@ def write_excel_with_formulas(summary_normal, summary_distratado, client_normal,
         print(f"Erro ao salvar ou proteger o arquivo Excel: {e}")
         traceback.print_exc()
 
-def _write_summary_section(sheet, summary_data, price_data, title, start_row, bold_font, header_fill, currency_format, accounting_format, regular_font, header_fill_kl, bold_white_font=None, regular_white_font=None):
-    # Solicitação: N -> I, I -> J. Cabeçalho de I: "Custo MO".
+# === SUBFUNÇÕES DE ESCRITA - RESUMO (Otimização Fase 2: divisão de função monolítica) ===
 
-    
+def _write_summary_header(sheet, title, start_row, bold_font, bold_white_font):
+    """Escreve o título e subtítulo da seção de resumo."""
     title_cell = sheet.cell(row=start_row, column=1, value=title)
     title_cell.font = bold_font
-    
+
     if title == 'RESUMO':
         title_cell.fill = FILL_PURPLE
         sheet.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=6)
         title_cell.alignment = Alignment(horizontal='center', vertical='center')
         apply_borders_to_range(sheet, start_row, 1, start_row, 6)
-        
+
         subtitle_row = start_row + 1
         subtitle_cell = sheet.cell(row=subtitle_row, column=1, value="SERVIÇOS ADICIONAIS (NOVO LAYOUT)")
         subtitle_cell.font = Font(color="FFFFFF", bold=True, name='Verdana', size=8)
         subtitle_cell.fill = FILL_GREEN
         sheet.merge_cells(start_row=subtitle_row, start_column=1, end_row=subtitle_row, end_column=6)
         subtitle_cell.alignment = Alignment(horizontal='center', vertical='center')
-        for col_idx in range(1, 6 + 1): # Changed to 6
+        for col_idx in range(1, 7):
             sheet.cell(row=subtitle_row, column=col_idx).fill = FILL_GREEN
         apply_borders_to_range(sheet, subtitle_row, 1, subtitle_row, 6)
-
-        current_row = start_row + 2
+        return start_row + 2
     elif title == 'SERVIÇOS DISTRATADOS':
         title_cell.fill = FILL_BLUE_DARK
         sheet.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=6)
         title_cell.alignment = Alignment(horizontal='center', vertical='center')
         title_cell.font = Font(color="FFFFFF", bold=True, name='Verdana', size=8)
-        for col_idx in range(1, 6 + 1): # Alterado para preencher apenas até a coluna F
+        for col_idx in range(1, 7):
             sheet.cell(row=start_row, column=col_idx).fill = FILL_BLUE_DARK
-        apply_borders_to_range(sheet, start_row, 1, start_row, 6) # Alterado para aplicar bordas apenas até a coluna F
-        current_row = start_row + 1
+        apply_borders_to_range(sheet, start_row, 1, start_row, 6)
+        return start_row + 1
     else:
-        current_row = start_row + 1
+        return start_row + 1
 
-    subtotal_valor_cells, subtotal_mo_cells, subtotal_valor_novo_cells = [], [], []
+def _write_summary_category_block(sheet, categoria, nome_categoria, items_cat, price_data, current_row, bold_font, header_fill, currency_format, accounting_format, regular_font, header_fill_kl, bold_white_font, regular_white_font):
+    """Escreve um bloco de categoria (header + dados + subtotal)."""
+    COLS_LOCAL = {'TIPO': 1, 'DESC': 2, 'METRAGEM': 3, 'UN': 4, 'VALOR_UNIT': 5, 'VALOR_TOTAL': 6, 'CUSTO_MO_UNIT': 9, 'CUSTO_MO_TOTAL': 10, 'VALOR_FECHADO': 11, 'VALOR_TOTAL_NOVO': 12}
+    VISIBLE_COLS_END_LOCAL = 12
 
+    # Define sort function
     def summary_sort_key_with_tp_priority(item):
         tipo_code = item[0]
         is_car = tipo_code.endswith('-CAR')
@@ -476,181 +479,197 @@ def _write_summary_section(sheet, summary_data, price_data, title, start_row, bo
         car_suffix_priority = 1 if is_car else 0
         return (natural_base_sort, car_suffix_priority)
 
-    for categoria, nome_categoria in [('Forros', 'Forros'), ('Paredes', 'Paredes e Revestimentos'), ('Isolamento', 'Isolamento Acústico'), ('Guias e Montantes', 'Guias e Montantes')]:
-        items_cat = {k: v for k, v in summary_data.items() if v.get('Categoria') == categoria}
-        if not items_cat: continue
-
-        header_row = [ ('Tipo R. Bassani', COLS['TIPO']), (nome_categoria, COLS['DESC']), ('Metragem', COLS['METRAGEM']), ('Un', COLS['UN']),
-                       ('Valor do Material + MO', COLS['VALOR_UNIT']), ('Valor Total', COLS['VALOR_TOTAL']), ('', 7), ('', 8), 
-                       ('Custo MO', COLS['CUSTO_MO_UNIT']), ('Valor Total MO', COLS['CUSTO_MO_TOTAL']),
-                       ('Valor Fechado', COLS['VALOR_FECHADO']), ('Valor Total', COLS['VALOR_TOTAL_NOVO']) ]
-        for val, col in header_row:
-            cell = sheet.cell(row=current_row, column=col, value=val)
-            cell.font = bold_font
-            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-            if val in ['Custo MO', 'Valor Total MO']:
-                cell.fill = FILL_GRAY
-                cell.font = bold_white_font
-            elif col in [COLS['VALOR_FECHADO'], COLS['VALOR_TOTAL_NOVO']]:
-                cell.fill = header_fill_kl
-            else:
-                cell.fill = header_fill
-        
-        apply_borders_to_range(sheet, current_row, COLS['TIPO'], current_row, VISIBLE_COLS_END)
-
-        current_row += 1
-        section_start_row = current_row
-
-        if categoria == 'Paredes':
-            sorted_items = sorted(items_cat.items(), key=summary_sort_key_with_tp_priority)
-        elif categoria == 'Isolamento':
-            sorted_items = sorted(items_cat.items(), key=lambda item: (0 if item[0].startswith('TP') else 1, natural_sort_key(item[0])))
+    # Escrever cabeçalho de categoria
+    header_row = [ ('Tipo R. Bassani', COLS_LOCAL['TIPO']), (nome_categoria, COLS_LOCAL['DESC']), ('Metragem', COLS_LOCAL['METRAGEM']), ('Un', COLS_LOCAL['UN']),
+                   ('Valor do Material + MO', COLS_LOCAL['VALOR_UNIT']), ('Valor Total', COLS_LOCAL['VALOR_TOTAL']), ('', 7), ('', 8),
+                   ('Custo MO', COLS_LOCAL['CUSTO_MO_UNIT']), ('Valor Total MO', COLS_LOCAL['CUSTO_MO_TOTAL']),
+                   ('Valor Fechado', COLS_LOCAL['VALOR_FECHADO']), ('Valor Total', COLS_LOCAL['VALOR_TOTAL_NOVO']) ]
+    for val, col in header_row:
+        cell = sheet.cell(row=current_row, column=col, value=val)
+        cell.font = bold_font
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        if val in ['Custo MO', 'Valor Total MO']:
+            cell.fill = FILL_GRAY
+            cell.font = bold_white_font
+        elif col in [COLS_LOCAL['VALOR_FECHADO'], COLS_LOCAL['VALOR_TOTAL_NOVO']]:
+            cell.fill = header_fill_kl
         else:
-            sorted_items = sorted(items_cat.items(), key=lambda item: natural_sort_key(item[0]))
+            cell.fill = header_fill
 
-        for tipo_code, data in sorted_items:
-            price_info = price_data.get(tipo_code, {'Valor': 0, 'Un': '', 'Custo MO': 0})
-            
-            # Colunas Visíveis A-F
-            sheet.cell(row=current_row, column=COLS['TIPO'], value=tipo_code).font = regular_font
-            sheet.cell(row=current_row, column=COLS['TIPO']).alignment = Alignment(horizontal='center', vertical='center')
-            sheet.cell(row=current_row, column=COLS['DESC'], value=data['Descricao']).font = regular_font
-            sheet.cell(row=current_row, column=COLS['DESC']).alignment = Alignment(wrap_text=True)
-            metragem_cell = sheet.cell(row=current_row, column=COLS['METRAGEM'], value=round(data['Quantidade'], 2))
-            metragem_cell.number_format = currency_format
-            metragem_cell.alignment = Alignment(vertical='center')
-            metragem_cell.font = regular_font
-            sheet.cell(row=current_row, column=COLS['UN'], value=price_info['Un']).font = regular_font
-            sheet.cell(row=current_row, column=COLS['UN']).alignment = Alignment(horizontal='center', vertical='center')
-            valor_fechado_cell_coord = f"{get_column_letter(COLS['VALOR_FECHADO'])}{current_row}"
-            valor_unit_cell = sheet.cell(row=current_row, column=COLS['VALOR_UNIT'], value=f"={valor_fechado_cell_coord}")
-            valor_unit_cell.number_format = currency_format
-            valor_unit_cell.alignment = Alignment(vertical='center')
-            valor_unit_cell.font = regular_font
-            
-            m_cell_coord = f"{get_column_letter(COLS['METRAGEM'])}{current_row}"
-            v_unit_cell_coord = f"{get_column_letter(COLS['VALOR_UNIT'])}{current_row}"
+    apply_borders_to_range(sheet, current_row, COLS_LOCAL['TIPO'], current_row, VISIBLE_COLS_END_LOCAL)
+    current_row += 1
+    section_start_row = current_row
 
-            valor_total_cell = sheet.cell(row=current_row, column=COLS['VALOR_TOTAL'], value=f"=ROUND({m_cell_coord}*{v_unit_cell_coord}, 2)")
-            valor_total_cell.number_format = accounting_format
-            
-            # Colunas Visíveis I e J
-            custo_mo_unit_cell = sheet.cell(row=current_row, column=COLS['CUSTO_MO_UNIT'], value=round(price_info['Custo MO'], 2))
-            custo_mo_unit_cell.number_format = currency_format
-            custo_mo_unit_cell.fill = PatternFill(start_color="c0c0c0", end_color="c0c0c0", fill_type="solid")
+    # Ordenar itens
+    if categoria == 'Paredes':
+        sorted_items = sorted(items_cat.items(), key=summary_sort_key_with_tp_priority)
+    elif categoria == 'Isolamento':
+        sorted_items = sorted(items_cat.items(), key=lambda item: (0 if item[0].startswith('TP') else 1, natural_sort_key(item[0])))
+    else:
+        sorted_items = sorted(items_cat.items(), key=lambda item: natural_sort_key(item[0]))
 
-            custo_mo_total_cell = sheet.cell(row=current_row, column=COLS['CUSTO_MO_TOTAL'], value=f"=ROUND({m_cell_coord}*{custo_mo_unit_cell.coordinate}, 2)")
-            custo_mo_total_cell.number_format = currency_format
-            custo_mo_total_cell.fill = PatternFill(start_color="c0c0c0", end_color="c0c0c0", fill_type="solid")
+    # Escrever dados de categoria
+    for tipo_code, data in sorted_items:
+        price_info = price_data.get(tipo_code, {'Valor': 0, 'Un': '', 'Custo MO': 0})
 
-            # Novas colunas K e L
-            valor_fechado_cell = sheet.cell(row=current_row, column=COLS['VALOR_FECHADO'], value=round(price_info['Valor'], 2))
-            valor_fechado_cell.number_format = currency_format
-            valor_fechado_cell.fill = PatternFill(start_color="99ccff", end_color="99ccff", fill_type="solid")
-            
-            valor_total_novo_cell = sheet.cell(row=current_row, column=COLS['VALOR_TOTAL_NOVO'], value=f"=ROUND({m_cell_coord}*{valor_fechado_cell.coordinate}, 2)")
-            valor_total_novo_cell.number_format = currency_format
-            valor_total_novo_cell.fill = PatternFill(start_color="99ccff", end_color="99ccff", fill_type="solid")
+        sheet.cell(row=current_row, column=COLS_LOCAL['TIPO'], value=tipo_code).font = regular_font
+        sheet.cell(row=current_row, column=COLS_LOCAL['TIPO']).alignment = Alignment(horizontal='center', vertical='center')
+        sheet.cell(row=current_row, column=COLS_LOCAL['DESC'], value=data['Descricao']).font = regular_font
+        sheet.cell(row=current_row, column=COLS_LOCAL['DESC']).alignment = Alignment(wrap_text=True)
+        metragem_cell = sheet.cell(row=current_row, column=COLS_LOCAL['METRAGEM'], value=round(data['Quantidade'], 2))
+        metragem_cell.number_format = currency_format
+        metragem_cell.alignment = Alignment(vertical='center')
+        metragem_cell.font = regular_font
+        sheet.cell(row=current_row, column=COLS_LOCAL['UN'], value=price_info['Un']).font = regular_font
+        sheet.cell(row=current_row, column=COLS_LOCAL['UN']).alignment = Alignment(horizontal='center', vertical='center')
+        valor_fechado_cell_coord = f"{get_column_letter(COLS_LOCAL['VALOR_FECHADO'])}{current_row}"
+        valor_unit_cell = sheet.cell(row=current_row, column=COLS_LOCAL['VALOR_UNIT'], value=f"={valor_fechado_cell_coord}")
+        valor_unit_cell.number_format = currency_format
+        valor_unit_cell.alignment = Alignment(vertical='center')
+        valor_unit_cell.font = regular_font
 
-            # Estilos de fonte e alinhamento
-            for col in [COLS['VALOR_TOTAL'], COLS['CUSTO_MO_UNIT'], COLS['CUSTO_MO_TOTAL'], COLS['VALOR_FECHADO'], COLS['VALOR_TOTAL_NOVO']]:
-                cell = sheet.cell(row=current_row, column=col)
-                cell.font = regular_font
-                cell.alignment = Alignment(vertical='center')
+        m_cell_coord = f"{get_column_letter(COLS_LOCAL['METRAGEM'])}{current_row}"
+        v_unit_cell_coord = f"{get_column_letter(COLS_LOCAL['VALOR_UNIT'])}{current_row}"
 
-            apply_borders_to_range(sheet, current_row, COLS['TIPO'], current_row, VISIBLE_COLS_END)
-            
-            current_row += 1
-            
-        subtotal_row = current_row
-        subtotal_cell = sheet.cell(row=subtotal_row, column=COLS['TIPO'], value='SUB-TOTAL')
-        subtotal_cell.font = bold_font
-        subtotal_fill = PatternFill(start_color="ffff99", end_color="ffff99", fill_type="solid")
-        subtotal_cell.alignment = Alignment(horizontal='center', vertical='center')
-        sheet.merge_cells(start_row=subtotal_row, start_column=1, end_row=subtotal_row, end_column=4)
-        for col_idx in range(1, 5): sheet.cell(row=subtotal_row, column=col_idx).fill = subtotal_fill
+        valor_total_cell = sheet.cell(row=current_row, column=COLS_LOCAL['VALOR_TOTAL'], value=f"=ROUND({m_cell_coord}*{v_unit_cell_coord}, 2)")
+        valor_total_cell.number_format = accounting_format
 
-        valor_total_col = get_column_letter(COLS['VALOR_TOTAL'])
-        formula_total = f"=ROUND(SUM({valor_total_col}{section_start_row}:{valor_total_col}{current_row - 1}), 2)"
-        
-        mo_col = get_column_letter(COLS['CUSTO_MO_TOTAL'])
-        formula_mo = f"=ROUND(SUM({mo_col}{section_start_row}:{mo_col}{current_row - 1}), 2)"
+        custo_mo_unit_cell = sheet.cell(row=current_row, column=COLS_LOCAL['CUSTO_MO_UNIT'], value=round(price_info['Custo MO'], 2))
+        custo_mo_unit_cell.number_format = currency_format
+        custo_mo_unit_cell.fill = FILL_GRAY_LIGHT
 
-        valor_total_novo_col = get_column_letter(COLS['VALOR_TOTAL_NOVO'])
-        formula_total_novo = f"=ROUND(SUM({valor_total_novo_col}{section_start_row}:{valor_total_novo_col}{current_row - 1}), 2)"
+        custo_mo_total_cell = sheet.cell(row=current_row, column=COLS_LOCAL['CUSTO_MO_TOTAL'], value=f"=ROUND({m_cell_coord}*{custo_mo_unit_cell.coordinate}, 2)")
+        custo_mo_total_cell.number_format = currency_format
+        custo_mo_total_cell.fill = FILL_GRAY_LIGHT
 
-        sheet.merge_cells(start_row=subtotal_row, start_column=COLS['VALOR_UNIT'], end_row=subtotal_row, end_column=COLS['VALOR_TOTAL'])
-        merged_value_cell = sheet.cell(row=subtotal_row, column=COLS['VALOR_UNIT'], value=formula_total)
-        merged_value_cell.number_format = accounting_format
-        merged_value_cell.alignment = Alignment(horizontal='right', vertical='center')
-        merged_value_cell.fill = subtotal_fill
-        merged_value_cell.font = bold_font
-        subtotal_valor_cells.append(merged_value_cell.coordinate)
+        valor_fechado_cell = sheet.cell(row=current_row, column=COLS_LOCAL['VALOR_FECHADO'], value=round(price_info['Valor'], 2))
+        valor_fechado_cell.number_format = currency_format
+        valor_fechado_cell.fill = FILL_BLUE_LIGHT
 
-        sheet.merge_cells(start_row=subtotal_row, start_column=7, end_row=subtotal_row, end_column=COLS['CUSTO_MO_TOTAL'])
-        merged_mo_cell = sheet.cell(row=subtotal_row, column=7, value=formula_mo)
-        merged_mo_cell.number_format = currency_format
-        merged_mo_cell.alignment = Alignment(horizontal='right', vertical='center')
-        merged_mo_cell.fill = PatternFill(start_color="969696", end_color="969696", fill_type="solid")
-        merged_mo_cell.font = Font(name='Verdana', color="FFFFFF", size=8)
-        subtotal_mo_cells.append(merged_mo_cell.coordinate)
-        
-        sheet.merge_cells(start_row=subtotal_row, start_column=COLS['VALOR_FECHADO'], end_row=subtotal_row, end_column=COLS['VALOR_TOTAL_NOVO'])
-        merged_value_novo_cell = sheet.cell(row=subtotal_row, column=COLS['VALOR_FECHADO'], value=formula_total_novo)
-        merged_value_novo_cell.number_format = currency_format
-        merged_value_novo_cell.alignment = Alignment(horizontal='right', vertical='center')
-        merged_value_novo_cell.fill = PatternFill(start_color="33cccc", end_color="33cccc", fill_type="solid")
-        merged_value_novo_cell.font = bold_font
-        subtotal_valor_novo_cells.append(merged_value_novo_cell.coordinate)
+        valor_total_novo_cell = sheet.cell(row=current_row, column=COLS_LOCAL['VALOR_TOTAL_NOVO'], value=f"=ROUND({m_cell_coord}*{valor_fechado_cell.coordinate}, 2)")
+        valor_total_novo_cell.number_format = currency_format
+        valor_total_novo_cell.fill = FILL_BLUE_LIGHT
 
-        apply_borders_to_range(sheet, subtotal_row, COLS['TIPO'], subtotal_row, VISIBLE_COLS_END)
-        current_row += 1
-        format_empty_row(sheet, current_row, regular_font)
+        for col in [COLS_LOCAL['VALOR_TOTAL'], COLS_LOCAL['CUSTO_MO_UNIT'], COLS_LOCAL['CUSTO_MO_TOTAL'], COLS_LOCAL['VALOR_FECHADO'], COLS_LOCAL['VALOR_TOTAL_NOVO']]:
+            cell = sheet.cell(row=current_row, column=col)
+            cell.font = regular_font
+            cell.alignment = Alignment(vertical='center')
+
+        apply_borders_to_range(sheet, current_row, COLS_LOCAL['TIPO'], current_row, VISIBLE_COLS_END_LOCAL)
         current_row += 1
 
-    total_row = current_row
-    total_label_cell = sheet.cell(row=total_row, column=COLS['TIPO'], value='TOTAL DOS SERVIÇOS EXECUTADOS' if title == 'RESUMO' else f'TOTAL {title}')
+    # Escrever subtotal
+    subtotal_row = current_row
+    subtotal_cell = sheet.cell(row=subtotal_row, column=COLS_LOCAL['TIPO'], value='SUB-TOTAL')
+    subtotal_cell.font = bold_font
+    subtotal_fill = FILL_YELLOW
+    subtotal_cell.alignment = Alignment(horizontal='center', vertical='center')
+    sheet.merge_cells(start_row=subtotal_row, start_column=1, end_row=subtotal_row, end_column=4)
+    for col_idx in range(1, 5): sheet.cell(row=subtotal_row, column=col_idx).fill = subtotal_fill
+
+    valor_total_col = get_column_letter(COLS_LOCAL['VALOR_TOTAL'])
+    formula_total = f"=ROUND(SUM({valor_total_col}{section_start_row}:{valor_total_col}{current_row - 1}), 2)"
+
+    mo_col = get_column_letter(COLS_LOCAL['CUSTO_MO_TOTAL'])
+    formula_mo = f"=ROUND(SUM({mo_col}{section_start_row}:{mo_col}{current_row - 1}), 2)"
+
+    valor_total_novo_col = get_column_letter(COLS_LOCAL['VALOR_TOTAL_NOVO'])
+    formula_total_novo = f"=ROUND(SUM({valor_total_novo_col}{section_start_row}:{valor_total_novo_col}{current_row - 1}), 2)"
+
+    sheet.merge_cells(start_row=subtotal_row, start_column=COLS_LOCAL['VALOR_UNIT'], end_row=subtotal_row, end_column=COLS_LOCAL['VALOR_TOTAL'])
+    merged_value_cell = sheet.cell(row=subtotal_row, column=COLS_LOCAL['VALOR_UNIT'], value=formula_total)
+    merged_value_cell.number_format = accounting_format
+    merged_value_cell.alignment = Alignment(horizontal='right', vertical='center')
+    merged_value_cell.fill = subtotal_fill
+    merged_value_cell.font = bold_font
+    subtotal_valor_coord = merged_value_cell.coordinate
+
+    sheet.merge_cells(start_row=subtotal_row, start_column=7, end_row=subtotal_row, end_column=COLS_LOCAL['CUSTO_MO_TOTAL'])
+    merged_mo_cell = sheet.cell(row=subtotal_row, column=7, value=formula_mo)
+    merged_mo_cell.number_format = currency_format
+    merged_mo_cell.alignment = Alignment(horizontal='right', vertical='center')
+    merged_mo_cell.fill = FILL_GRAY
+    merged_mo_cell.font = Font(name='Verdana', color="FFFFFF", size=8)
+    subtotal_mo_coord = merged_mo_cell.coordinate
+
+    sheet.merge_cells(start_row=subtotal_row, start_column=COLS_LOCAL['VALOR_FECHADO'], end_row=subtotal_row, end_column=COLS_LOCAL['VALOR_TOTAL_NOVO'])
+    merged_value_novo_cell = sheet.cell(row=subtotal_row, column=COLS_LOCAL['VALOR_FECHADO'], value=formula_total_novo)
+    merged_value_novo_cell.number_format = currency_format
+    merged_value_novo_cell.alignment = Alignment(horizontal='right', vertical='center')
+    merged_value_novo_cell.fill = FILL_CYAN
+    merged_value_novo_cell.font = bold_font
+    subtotal_valor_novo_coord = merged_value_novo_cell.coordinate
+
+    apply_borders_to_range(sheet, subtotal_row, COLS_LOCAL['TIPO'], subtotal_row, VISIBLE_COLS_END_LOCAL)
+    current_row += 1
+    format_empty_row(sheet, current_row, regular_font)
+    current_row += 1
+
+    return current_row, subtotal_valor_coord, subtotal_mo_coord, subtotal_valor_novo_coord
+
+def _write_summary_totals(sheet, total_row, title, subtotal_valor_cells, subtotal_mo_cells, subtotal_valor_novo_cells, bold_font, bold_white_font, regular_white_font, currency_format, accounting_format):
+    """Escreve a linha de TOTAL GERAL."""
+    COLS_LOCAL = {'TIPO': 1, 'DESC': 2, 'METRAGEM': 3, 'UN': 4, 'VALOR_UNIT': 5, 'VALOR_TOTAL': 6, 'CUSTO_MO_UNIT': 9, 'CUSTO_MO_TOTAL': 10, 'VALOR_FECHADO': 11, 'VALOR_TOTAL_NOVO': 12}
+    VISIBLE_COLS_END_LOCAL = 12
+
+    total_label_cell = sheet.cell(row=total_row, column=COLS_LOCAL['TIPO'], value='TOTAL DOS SERVIÇOS EXECUTADOS' if title == 'RESUMO' else f'TOTAL {title}')
     total_label_cell.font = bold_font
     total_formula = f"=ROUND({'+'.join(subtotal_valor_cells)}, 2)" if subtotal_valor_cells else "0"
     mo_formula = f"=ROUND({'+'.join(subtotal_mo_cells)}, 2)" if subtotal_mo_cells else "0"
     novo_valor_formula = f"=ROUND({'+'.join(subtotal_valor_novo_cells)}, 2)" if subtotal_valor_novo_cells else "0"
-    
+
     fill_color_label = "77933c" if title == 'RESUMO' else "31859c"
-    font_color = "FFFFFF"
     sheet.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=4)
     total_label_cell.alignment = Alignment(horizontal='center', vertical='center')
     total_label_cell.fill = PatternFill(start_color=fill_color_label, end_color=fill_color_label, fill_type="solid")
     total_label_cell.font = bold_white_font
     for col_idx in range(1, 5): sheet.cell(row=total_row, column=col_idx).fill = PatternFill(start_color=fill_color_label, end_color=fill_color_label, fill_type="solid")
 
-    total_val_cell_obj = sheet.cell(row=total_row, column=COLS['VALOR_UNIT'], value=total_formula)
+    total_val_cell_obj = sheet.cell(row=total_row, column=COLS_LOCAL['VALOR_UNIT'], value=total_formula)
     total_val_cell_obj.number_format = accounting_format
     total_val_cell_obj.alignment = Alignment(horizontal='right', vertical='center')
     total_val_cell_obj.fill = PatternFill(start_color=fill_color_label, end_color=fill_color_label, fill_type="solid")
     total_val_cell_obj.font = regular_white_font
     final_total_val_coord = total_val_cell_obj.coordinate
 
-    sheet.merge_cells(start_row=total_row, start_column=7, end_row=total_row, end_column=COLS['CUSTO_MO_TOTAL'])
+    sheet.merge_cells(start_row=total_row, start_column=7, end_row=total_row, end_column=COLS_LOCAL['CUSTO_MO_TOTAL'])
     total_mo_cell_obj = sheet.cell(row=total_row, column=7, value=mo_formula)
     total_mo_cell_obj.number_format = currency_format
     total_mo_cell_obj.alignment = Alignment(horizontal='right', vertical='center')
     total_mo_cell_obj.fill = PatternFill(start_color="969696", end_color="969696", fill_type="solid")
     total_mo_cell_obj.font = regular_white_font
     final_total_mo_coord = total_mo_cell_obj.coordinate
-    
-    sheet.merge_cells(start_row=total_row, start_column=COLS['VALOR_FECHADO'], end_row=total_row, end_column=COLS['VALOR_TOTAL_NOVO'])
-    total_val_novo_cell_obj = sheet.cell(row=total_row, column=COLS['VALOR_FECHADO'], value=novo_valor_formula) # Usa a nova formula para K e L
+
+    sheet.merge_cells(start_row=total_row, start_column=COLS_LOCAL['VALOR_FECHADO'], end_row=total_row, end_column=COLS_LOCAL['VALOR_TOTAL_NOVO'])
+    total_val_novo_cell_obj = sheet.cell(row=total_row, column=COLS_LOCAL['VALOR_FECHADO'], value=novo_valor_formula)
     total_val_novo_cell_obj.number_format = currency_format
     total_val_novo_cell_obj.alignment = Alignment(horizontal='right', vertical='center')
-    total_val_novo_cell_obj.fill = PatternFill(start_color="33cccc", end_color="33cccc", fill_type="solid")
+    total_val_novo_cell_obj.fill = FILL_CYAN
     total_val_novo_cell_obj.font = regular_white_font
     final_total_novo_coord = total_val_novo_cell_obj.coordinate
-    
-    apply_borders_to_range(sheet, total_row, COLS['TIPO'], total_row, VISIBLE_COLS_END)
-    
-    final_current_row = current_row + 1
 
-    return final_current_row, final_total_val_coord, final_total_mo_coord, final_total_novo_coord
+    apply_borders_to_range(sheet, total_row, COLS_LOCAL['TIPO'], total_row, VISIBLE_COLS_END_LOCAL)
+
+    return final_total_val_coord, final_total_mo_coord, final_total_novo_coord
+
+def _write_summary_section(sheet, summary_data, price_data, title, start_row, bold_font, header_fill, currency_format, accounting_format, regular_font, header_fill_kl, bold_white_font=None, regular_white_font=None):
+    """Orquestração de escrita da seção de resumo (refatorado em subfunções)."""
+    current_row = _write_summary_header(sheet, title, start_row, bold_font, bold_white_font)
+
+    subtotal_valor_cells, subtotal_mo_cells, subtotal_valor_novo_cells = [], [], []
+
+    for categoria, nome_categoria in [('Forros', 'Forros'), ('Paredes', 'Paredes e Revestimentos'), ('Isolamento', 'Isolamento Acústico'), ('Guias e Montantes', 'Guias e Montantes')]:
+        items_cat = {k: v for k, v in summary_data.items() if v.get('Categoria') == categoria}
+        if not items_cat: continue
+
+        current_row, sv, sm, svn = _write_summary_category_block(sheet, categoria, nome_categoria, items_cat, price_data, current_row, bold_font, header_fill, currency_format, accounting_format, regular_font, header_fill_kl, bold_white_font, regular_white_font)
+        subtotal_valor_cells.append(sv)
+        subtotal_mo_cells.append(sm)
+        subtotal_valor_novo_cells.append(svn)
+
+    final_total_val_coord, final_total_mo_coord, final_total_novo_coord = _write_summary_totals(sheet, current_row, title, subtotal_valor_cells, subtotal_mo_cells, subtotal_valor_novo_cells, bold_font, bold_white_font, regular_white_font, currency_format, accounting_format)
+
+    return current_row + 1, final_total_val_coord, final_total_mo_coord, final_total_novo_coord
 
 def write_summary_sheet(sheet, summary_normal, summary_distratado, price_data, bold_font, header_fill, currency_format, accounting_format, regular_font, header_fill_kl, observacoes_gerais_content="", bold_white_font=None, regular_white_font=None):
     sheet.column_dimensions['A'].width = 12.29
@@ -1286,7 +1305,74 @@ def write_client_sheet(sheet, client_normal, client_distratado, price_data, bold
     sheet.page_setup.fitToHeight = 0
     sheet.page_setup.printArea = f'A2:F{saldo_final_row}'
     sheet.sheet_view.view = 'pageBreakPreview'
+# === SUBFUNÇÕES DE ESCRITA - CLIENT (Otimização Fase 2: divisão de função monolítica) ===
 
+def _write_client_insulation_rows(sheet, item, price_data, current_row, regular_font, currency_format, accounting_format, m_cell_ref, COLS):
+    """Escreve as linhas de isolamento acústico de um item."""
+    insulation_cell_references = []
+    for sub_item_key, sub_item in sorted(item.get('insulation_items', {}).items()):
+        price_info_sub = price_data.get(sub_item['Tipo Code'], {'Valor': 0, 'Un': ''})
+        sub_desc_cell = sheet.cell(row=current_row, column=COLS['DESC'], value=sub_item['Descricao'])
+        sub_desc_cell.alignment = Alignment(wrap_text=True, vertical='center')
+        sub_desc_cell.font = regular_font
+
+        sub_m_cell = sheet.cell(row=current_row, column=COLS['METRAGEM'])
+        sub_m_cell.number_format = currency_format
+        sub_m_cell.font = regular_font
+        sub_m_cell.alignment = Alignment(vertical='center')
+
+        if sub_item.get('is_la_dupla'):
+            sub_m_cell.value = f"={m_cell_ref}*2"
+        else:
+            sub_m_cell.value = sub_item['Quantidade']
+            insulation_cell_references.append(sub_m_cell.coordinate)
+
+        sub_un_cell = sheet.cell(row=current_row, column=COLS['UN'], value=price_info_sub['Un'])
+        sub_un_cell.font = regular_font
+        sub_un_cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        sub_v_unit_cell_obj = sheet.cell(row=current_row, column=COLS['VALOR_UNIT'], value=price_info_sub['Valor'])
+        sub_v_unit_cell_obj.number_format = accounting_format
+        sub_v_unit_cell_obj.font = regular_font
+        sub_v_unit_cell_obj.alignment = Alignment(horizontal='right', vertical='center')
+
+        sub_v_unit_cell = f"{get_column_letter(COLS['VALOR_UNIT'])}{current_row}"
+        sub_v_total_cell = sheet.cell(row=current_row, column=COLS['VALOR_TOTAL'], value=f"={sub_m_cell.coordinate}*{sub_v_unit_cell}")
+        sub_v_total_cell.number_format = accounting_format
+        sub_v_total_cell.font = regular_font
+        sub_v_total_cell.alignment = Alignment(horizontal='right', vertical='center')
+        apply_borders_to_range(sheet, current_row, COLS['TIPO'], current_row, COLS['VALOR_TOTAL'])
+        current_row += 1
+
+    return current_row, insulation_cell_references
+
+def _write_client_carenagem_rows(sheet, item, price_data, current_row, regular_font, currency_format, accounting_format, COLS):
+    """Escreve as linhas de carenagem de um item."""
+    for sub_item_key, sub_item in sorted(item.get('carenagem_items', {}).items()):
+        price_info_sub = price_data.get(sub_item['Tipo Code'], {'Valor': 0, 'Un': ''})
+        sub_desc_cell = sheet.cell(row=current_row, column=COLS['DESC'], value=sub_item['Descricao'])
+        sub_desc_cell.alignment = Alignment(wrap_text=True, vertical='center')
+        sub_desc_cell.font = regular_font
+        sub_m_cell = sheet.cell(row=current_row, column=COLS['METRAGEM'], value=sub_item['Quantidade'])
+        sub_m_cell.number_format = currency_format
+        sub_m_cell.font = regular_font
+        sub_m_cell.alignment = Alignment(vertical='center')
+        sub_un_cell = sheet.cell(row=current_row, column=COLS['UN'], value=price_info_sub['Un'])
+        sub_un_cell.font = regular_font
+        sub_un_cell.alignment = Alignment(horizontal='center', vertical='center')
+        sub_v_unit_cell_obj = sheet.cell(row=current_row, column=COLS['VALOR_UNIT'], value=price_info_sub['Valor'])
+        sub_v_unit_cell_obj.number_format = accounting_format
+        sub_v_unit_cell_obj.font = regular_font
+        sub_v_unit_cell_obj.alignment = Alignment(horizontal='right', vertical='center')
+        sub_v_unit_cell = f"{get_column_letter(COLS['VALOR_UNIT'])}{current_row}"
+        sub_v_total_cell = sheet.cell(row=current_row, column=COLS['VALOR_TOTAL'], value=f"={sub_m_cell.coordinate}*{sub_v_unit_cell}")
+        sub_v_total_cell.number_format = accounting_format
+        sub_v_total_cell.font = regular_font
+        sub_v_total_cell.alignment = Alignment(horizontal='right', vertical='center')
+        apply_borders_to_range(sheet, current_row, COLS['TIPO'], current_row, COLS['VALOR_TOTAL'])
+        current_row += 1
+
+    return current_row
 
 def _write_client_section(sheet, items_by_key, price_data, start_row, bold_font, header_fill, currency_format, accounting_format, regular_font, bold_white_font=None, regular_white_font=None):
     COLS = {'TIPO': 1, 'DESC': 2, 'METRAGEM': 3, 'UN': 4, 'VALOR_UNIT': 5, 'VALOR_TOTAL': 6}
@@ -1383,68 +1469,11 @@ def _write_client_section(sheet, items_by_key, price_data, start_row, bold_font,
             current_row += 1
 
             # --- SUB-ITEM LOOPS ---
-            insulation_cell_references = [] # Initialized here for each main item
-            
-            # ISOLAMENTO
-            for sub_item_key, sub_item in sorted(item.get('insulation_items', {}).items()):
-                price_info_sub = price_data.get(sub_item['Tipo Code'], {'Valor': 0, 'Un': ''})
-                sub_desc_cell = sheet.cell(row=current_row, column=COLS['DESC'], value=sub_item['Descricao'])
-                sub_desc_cell.alignment = Alignment(wrap_text=True, vertical='center')
-                sub_desc_cell.font = regular_font
-                
-                sub_m_cell = sheet.cell(row=current_row, column=COLS['METRAGEM'])
-                sub_m_cell.number_format = currency_format
-                sub_m_cell.font = regular_font
-                sub_m_cell.alignment = Alignment(vertical='center')
+            # Escrever isolamento acústico
+            current_row, insulation_cell_references = _write_client_insulation_rows(sheet, item, price_data, current_row, regular_font, currency_format, accounting_format, m_cell_ref, COLS)
 
-                if sub_item.get('is_la_dupla'):
-                    sub_m_cell.value = f"={m_cell_ref}*2"
-                else:
-                    sub_m_cell.value = sub_item['Quantidade']
-                    insulation_cell_references.append(sub_m_cell.coordinate) # Only append if not 'lã dupla'
-                
-                # Add lines to write 'Un' and 'Valor do Material + MO'
-                sub_un_cell = sheet.cell(row=current_row, column=COLS['UN'], value=price_info_sub['Un'])
-                sub_un_cell.font = regular_font
-                sub_un_cell.alignment = Alignment(horizontal='center', vertical='center')
-                
-                sub_v_unit_cell_obj = sheet.cell(row=current_row, column=COLS['VALOR_UNIT'], value=price_info_sub['Valor'])
-                sub_v_unit_cell_obj.number_format = accounting_format
-                sub_v_unit_cell_obj.font = regular_font
-                sub_v_unit_cell_obj.alignment = Alignment(horizontal='right', vertical='center')
-                
-                sub_v_unit_cell = f"{get_column_letter(COLS['VALOR_UNIT'])}{current_row}"
-                sub_v_total_cell = sheet.cell(row=current_row, column=COLS['VALOR_TOTAL'], value=f"={sub_m_cell.coordinate}*{sub_v_unit_cell}")
-                sub_v_total_cell.number_format = accounting_format
-                sub_v_total_cell.font = regular_font
-                sub_v_total_cell.alignment = Alignment(horizontal='right', vertical='center')
-                apply_borders_to_range(sheet, current_row, COLS['TIPO'], current_row, COLS['VALOR_TOTAL']) # Add borders
-                current_row += 1
-
-            # CARNAGEM
-            for sub_item_key, sub_item in sorted(item.get('carenagem_items', {}).items()):
-                price_info_sub = price_data.get(sub_item['Tipo Code'], {'Valor': 0, 'Un': ''})
-                sub_desc_cell = sheet.cell(row=current_row, column=COLS['DESC'], value=sub_item['Descricao'])
-                sub_desc_cell.alignment = Alignment(wrap_text=True, vertical='center')
-                sub_desc_cell.font = regular_font
-                sub_m_cell = sheet.cell(row=current_row, column=COLS['METRAGEM'], value=sub_item['Quantidade'])
-                sub_m_cell.number_format = currency_format
-                sub_m_cell.font = regular_font
-                sub_m_cell.alignment = Alignment(vertical='center')
-                sub_un_cell = sheet.cell(row=current_row, column=COLS['UN'], value=price_info_sub['Un'])
-                sub_un_cell.font = regular_font
-                sub_un_cell.alignment = Alignment(horizontal='center', vertical='center')
-                sub_v_unit_cell_obj = sheet.cell(row=current_row, column=COLS['VALOR_UNIT'], value=price_info_sub['Valor'])
-                sub_v_unit_cell_obj.number_format = accounting_format
-                sub_v_unit_cell_obj.font = regular_font
-                sub_v_unit_cell_obj.alignment = Alignment(horizontal='right', vertical='center')
-                sub_v_unit_cell = f"{get_column_letter(COLS['VALOR_UNIT'])}{current_row}"
-                sub_v_total_cell = sheet.cell(row=current_row, column=COLS['VALOR_TOTAL'], value=f"={sub_m_cell.coordinate}*{sub_v_unit_cell}")
-                sub_v_total_cell.number_format = accounting_format
-                sub_v_total_cell.font = regular_font
-                sub_v_total_cell.alignment = Alignment(horizontal='right', vertical='center')
-                apply_borders_to_range(sheet, current_row, COLS['TIPO'], current_row, COLS['VALOR_TOTAL']) # Add borders
-                current_row += 1
+            # Escrever carenagem
+            current_row = _write_client_carenagem_rows(sheet, item, price_data, current_row, regular_font, currency_format, accounting_format, COLS)
 
             # --- FORMULA LOGIC FOR MAIN ITEM (AFTER SUB-ITEMS ARE PROCESSED) ---
             if cat_name != 'Guias e Montantes' and not is_subclass_item and item['Tipo Code'] != 'FT16':
