@@ -894,6 +894,72 @@ def write_aditivos_distrato_sheet(sheet, summary_normal, summary_distratado, pri
 
                 current_row += 1
 
+                # === SUBITENS (ISOLAMENTO ACÚSTICO) ===
+                n_insulation = n_items.get(tipo, {}).get('insulation_items', {}) if tipo in n_items else {}
+                d_insulation = d_items.get(tipo, {}).get('insulation_items', {}) if tipo in d_items else {}
+
+                # Coletar todas as chaves de isolamento (ADD + DIST)
+                all_insul_keys = set(n_insulation.keys()) | set(d_insulation.keys())
+
+                for insul_key in sorted(all_insul_keys):
+                    sub_row = current_row
+
+                    # ADD - Isolamento
+                    if insul_key in n_insulation:
+                        sub_item = n_insulation[insul_key]
+                        sub_metr = round(sub_item.get('Quantidade', 0), 2)
+                        sub_unit = price_data.get(sub_item['Tipo Code'], {}).get('Un', '')
+                        sub_vunit = round(price_data.get(sub_item['Tipo Code'], {}).get('Valor', 0), 2)
+                        sub_desc = sub_item.get('Descricao', '')
+
+                        # Deixar vazio coluna A (tipo) para subitens
+                        cB_sub = sheet.cell(row=sub_row, column=2, value=sub_desc)
+                        cB_sub.font = regular_font; cB_sub.alignment = Alignment(vertical='center', wrap_text=True)
+                        cC_sub = sheet.cell(row=sub_row, column=3, value=sub_metr)
+                        cC_sub.number_format = currency_format
+                        cC_sub.font = regular_font; cC_sub.alignment = Alignment(vertical='center')
+                        cD_sub = sheet.cell(row=sub_row, column=4, value=sub_unit)
+                        cD_sub.font = regular_font; cD_sub.alignment = Alignment(horizontal='center', vertical='center')
+                        cE_sub = sheet.cell(row=sub_row, column=5, value=sub_vunit)
+                        cE_sub.number_format = currency_format
+                        cE_sub.font = regular_font; cE_sub.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                        cF_sub = sheet.cell(row=sub_row, column=6, value=f'=E{sub_row}*C{sub_row}')
+                        cF_sub.number_format = accounting_format
+                        cF_sub.font = regular_font; cF_sub.fill = fill_add_label
+                        cF_sub.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                    apply_borders_to_range(sheet, sub_row, 1, sub_row, 6)
+
+                    # DIST - Isolamento
+                    if insul_key in d_insulation:
+                        sub_item = d_insulation[insul_key]
+                        sub_metr = round(sub_item.get('Quantidade', 0), 2)
+                        sub_unit = price_data.get(sub_item['Tipo Code'], {}).get('Un', '')
+                        sub_vunit = round(price_data.get(sub_item['Tipo Code'], {}).get('Valor', 0), 2)
+                        sub_desc = sub_item.get('Descricao', '')
+
+                        # Deixar vazio coluna G (tipo) para subitens
+                        cH_sub = sheet.cell(row=sub_row, column=8, value=sub_desc)
+                        cH_sub.font = regular_font; cH_sub.alignment = Alignment(vertical='center', wrap_text=True)
+                        cI_sub = sheet.cell(row=sub_row, column=9, value=sub_metr)
+                        cI_sub.number_format = currency_format
+                        cI_sub.font = regular_font; cI_sub.alignment = Alignment(vertical='center')
+                        cJ_sub = sheet.cell(row=sub_row, column=10, value=sub_unit)
+                        cJ_sub.font = regular_font; cJ_sub.alignment = Alignment(horizontal='center', vertical='center')
+                        cK_sub = sheet.cell(row=sub_row, column=11, value=sub_vunit)
+                        cK_sub.number_format = currency_format
+                        cK_sub.font = regular_font; cK_sub.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                        cL_sub = sheet.cell(row=sub_row, column=12, value=f'=I{sub_row}*K{sub_row}')
+                        cL_sub.number_format = accounting_format
+                        cL_sub.font = regular_font; cL_sub.fill = fill_dis_label
+                        cL_sub.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                    apply_borders_to_range(sheet, sub_row, 7, sub_row, 12)
+
+                    # Coluna M: diferença de metragem para subitens
+                    cM_sub = sheet.cell(row=sub_row, column=13, value=f'=C{sub_row}-I{sub_row}')
+                    cM_sub.font = font_red; cM_sub.alignment = Alignment(vertical='center', wrap_text=True)
+
+                    current_row += 1
+
             section_end = current_row - 1
 
             # Total da categoria
@@ -1205,7 +1271,9 @@ def _write_client_section(sheet, items_by_key, price_data, start_row, bold_font,
         header_row_data = [('Tipo R. Bassani', COLS['TIPO']), (cat_label, COLS['DESC']), ('Metragem', COLS['METRAGEM']), ('Un', COLS['UN']), ('Valor do Material + MO', COLS['VALOR_UNIT']), ('Valor Total', COLS['VALOR_TOTAL'])]
         for val, col_idx in header_row_data:
             cell = sheet.cell(row=current_row, column=col_idx, value=val)
-            cell.font, cell.fill = bold_font, header_fill
+            cell.font = bold_font
+            # Forçar cor #99CCFF nos cabeçalhos
+            cell.fill = PatternFill(start_color="99ccff", end_color="99ccff", fill_type="solid")
             cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
         apply_borders_to_range(sheet, current_row, COLS['TIPO'], current_row, COLS['VALOR_TOTAL']) # Add borders
         current_row += 1
